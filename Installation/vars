@@ -1,0 +1,22 @@
+# Use this file to set the vars needed for the script, if they known in advance.
+# Using this file prevents interactive prompts.
+
+# Test values entered . . .
+
+# Hostname:
+SYSTEM_NAME=archtest
+
+# Username and password of first user:
+USER=arch
+USER_PASS=pass
+
+# Swap-size in GB:
+SWAPSIZE=1
+
+# Encryption password:
+CRYPT_PASS=pass
+
+# These expect the full path to the device using /dev/disk/by-id/<id>
+BOOT_DISK=/dev/disk/by-id/ata-VMware_Virtual_SATA_Hard_Drive_00000000000000000001
+USER_DISK=/dev/disk/by-id/wwn-0x6000c296d34088654d4ff405ae9a541b
+ 
