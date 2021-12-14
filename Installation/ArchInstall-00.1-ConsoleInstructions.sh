@@ -18,7 +18,9 @@ echo "Command to SSH in is: ssh root@${IPADDRESS}"
 pacman -Sy --noconfirm git
 cd /root
 rm -rf ArchInstall
-git clone https://gist.github.com/bcfbfdc7645cf5b7401cdbe229d84d98.git ArchInstall
+git clone https://github.com/lumnikemel/ArchAngel.git ArchAngel
+cp -r ./ArchAngel/Installation ./ArchInstall
+rm -r ./ArchAngel
 cd ArchInstall
 chmod +x *
 SCRIPT_DIR=/root/ArchInstall
