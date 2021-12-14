@@ -1,0 +1,19 @@
+# Use this file to set the vars needed for the script, if they known in advance.
+# Using this file prevents interactive prompts.
+
+# Hostname:
+SYSTEM_NAME=""
+
+# Username and password of first user:
+USER=""
+USER_PASS=""
+
+# Swap-size in GB:
+SWAPSIZE=""
+
+# Encryption password:
+CRYPT_PASS=""
+
+# These expect the full path to the device using /dev/disk/by-id/<id>
+BOOT_DISK=""
+USER_DISK=""
