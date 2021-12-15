@@ -2,7 +2,7 @@
 - hosts: localhost
   name: Bootstrap Arch Linux system
   connection: local
-  gather_facts: no
+  #gather_facts: no
   
   vars:
     _allowed_envs:
