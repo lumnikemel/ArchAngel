@@ -2,8 +2,9 @@
 echo -e "password\npassword" | sudo -S passwd
 sudo systemctl start sshd
 echo set -g default-terminal "xterm-256color" > .tmux.conf
-env SHELL=/usr/bin/bash tmux new -s install
-ip a | grep "inet " | grep -v host | cut -f 6 -d " " | cut -f 1 -d "/"
+env SHELL=/usr/bin/bash tmux new -d -s install
+#ip a | grep "inet " | grep -v host | cut -f 6 -d " " | cut -f 1 -d "/"
+tmux send-keys -t install 'ip a | grep "inet " | grep -v host | cut -f 6 -d " " | cut -f 1 -d "/"' Enter
 
 ```
 ----
