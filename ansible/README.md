@@ -1,7 +1,7 @@
 ```
 mount -o remount,size=2G /run/archiso/cowspace
-pacman -Qq | grep python | pacman -S -
-pacman -Sy git ansible python-passlib
+pacman -Sy
+pacman -Qq | grep python | pacman -S - git ansible python-passlib --noconfirm
 cd /root
 rm -r ArchAngel
 git clone -b Ansible-Install https://github.com/lumnikemel/ArchAngel
