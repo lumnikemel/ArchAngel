@@ -5,28 +5,33 @@
 
   vars_prompt:
     - name: system_name
-      prompt: "System hostname:"
+      prompt: "System hostname"
       private: no
       confirm: no
       
     - name: swap_size
-      prompt: "System swap-size:"
+      prompt: "System swap-size"
       private: no
       confirm: no
       
     - name: luks_passphrase
-      prompt: "encryption passphrase:"
+      prompt: "encryption passphrase"
+      unsafe: yes
       private: yes
       confirm: yes
       
     - name: user_name
-      prompt: "Username:"
+      prompt: "Username"
       private: no
       confirm: no
       
     - name: user_password
-      prompt: "user password:"
+      prompt: "user password"
       encrypt: "sha512_crypt"
+      unsafe: yes
       private: yes
       confirm: yes
       
+    - name: Print all available facts
+      ansible.builtin.debug:
+        var: ansible_facts
