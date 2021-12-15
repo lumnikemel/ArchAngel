@@ -1,0 +1,32 @@
+---
+- hosts: localhost
+  name: Bootstrap Arch Linux system
+  connection: local
+
+  vars_prompt:
+    - name: system_name
+      prompt: "System hostname:"
+      private: no
+      confirm: no
+      
+    - name: swap_size
+      prompt: "System swap-size:"
+      private: no
+      confirm: no
+      
+    - name: luks_passphrase
+      prompt: "encryption passphrase:"
+      private: yes
+      confirm: yes
+      
+    - name: user_name
+      prompt: "Username:"
+      private: no
+      confirm: no
+      
+    - name: user_password
+      prompt: "user password:"
+      encrypt: "sha512_crypt"
+      private: yes
+      confirm: yes
+      
