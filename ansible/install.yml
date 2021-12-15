@@ -47,6 +47,12 @@
       when: not swap_size is regex('\d*')
       run_once: true
       
+    - set_fact:
+        luks_passphrase: "{{ luks_passphrase }}"
+
+    - set_fact:
+        user_password: "{{ user_password }}"
+      
   tasks:
     #- name: Print all available facts
     #  ansible.builtin.debug:
