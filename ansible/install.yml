@@ -2,6 +2,7 @@
 - hosts: localhost
   name: Bootstrap Arch Linux system
   connection: local
+  gather_facts: no
   
   vars:
     _allowed_envs:
@@ -38,13 +39,13 @@
       private: yes
       confirm: yes
       
-    - name: release_version
-      prompt: "What is the release version ? [w.x.y-z]"
-      private: no
-
-    - name: target_env
-      prompt: "What is the target environment ? [{{ _allowed_envs | join(', ') }}]"
-      private: no
+  pre_tasks:
+    - name: Validate swap is an integer
+      fail:
+        msg: >-
+          Swap size is not formatted correctly. Please make sure it is of the form of an integer (GB).
+      when: not swap_size is regex('\d*')
+      run_once: true
       
   tasks:
     #- name: Print all available facts
