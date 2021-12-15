@@ -32,6 +32,7 @@
       private: yes
       confirm: yes
       
-  - name: Print all available facts
-    ansible.builtin.debug:
-    var: ansible_facts
+  tasks:
+    - name: Print all available facts
+      ansible.builtin.debug:
+      var: ansible_facts
