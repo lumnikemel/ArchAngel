@@ -2,6 +2,12 @@
 - hosts: localhost
   name: Bootstrap Arch Linux system
   connection: local
+  
+  vars:
+    _allowed_envs:
+      - dev
+      - preprod
+      - prod
 
   vars_prompt:
     - name: system_name
@@ -32,13 +38,21 @@
       private: yes
       confirm: yes
       
+    - name: release_version
+      prompt: "What is the release version ? [w.x.y-z]"
+      private: no
+
+    - name: target_env
+      prompt: "What is the target environment ? [{{ _allowed_envs | join(', ') }}]"
+      private: no
+      
   tasks:
-    - name: Print all available facts
-      ansible.builtin.debug:
-        var: ansible_facts
-    - name: "Ansible | List all known variables and facts"
-      ansible.builtin.debug:
-        var: hostvars[inventory_hostname]
+    #- name: Print all available facts
+    #  ansible.builtin.debug:
+    #    var: ansible_facts
+    #- name: "Ansible | List all known variables and facts"
+    #  ansible.builtin.debug:
+    #    var: hostvars[inventory_hostname]
     - name: "Ansible | List all known variables and facts"
       ansible.builtin.debug:
         var: vars
