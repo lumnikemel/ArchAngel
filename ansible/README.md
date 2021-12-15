@@ -1,6 +1,7 @@
 ```
 echo -e "password\npassword" | sudo -S passwd
 sudo systemctl start sshd
+
 ```
 ----
 ```
