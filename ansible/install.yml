@@ -45,7 +45,7 @@
         msg: >-
           Swap size is not formatted correctly. Please make sure it is of the form of an integer (GB).
       when: not swap_size is regex('\d*')
-      run_once: true
+      run_once: false
       
     - set_fact:
         luks_passphrase: "{{ luks_passphrase }}"
