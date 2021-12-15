@@ -17,6 +17,7 @@ This script will create an Arch Linux installation with the following characteri
 - [ ] Multi-root booting using zedfs with ZFS.
 - [ ] AUR installer using yay.
 - [ ] Secure-Boot w/ TPM.
+- [ ] Rebuild install as ansible playbook.
 
 
 Further, the installation is designed to be as secure as possible while maintaining user-friendliness.
