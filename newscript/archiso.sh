@@ -1,7 +1,19 @@
+#DISK1=/dev/disk/by-id/scsi-3600224802c58be3dd6d17e59deb06d6d
+#DISK2=/dev/disk/by-id/scsi-360022480ce395636dfe850cadad70682
 
+i=1
+while read -r byid; do
+    size=$(lsblk -dn -o SIZE "$(readlink -f "$byid")" | tr -d ' ')
+    if [ "$size" = "8G" ]; then
+        declare "DISK$i=$byid"
+        ((i++))
+    fi
+done < <(find /dev/disk/by-id -name 'scsi*')
 
-DISK1=/dev/disk/by-id/scsi-3600224802c58be3dd6d17e59deb06d6d
-DISK2=/dev/disk/by-id/scsi-360022480ce395636dfe850cadad70682
+# Print the results to verify
+for ((j=1; j<i; j++)); do
+    eval "echo DISK$j=\$DISK$j"
+done
 
 echo DISK1 is $DISK1
 echo DISK2 is $DISK2
@@ -138,13 +150,14 @@ efibootmgr -o $BOOT_ORDER
 
 
 ## Configure bootloader - option RAID
+MDDATA=$(blkid -s UUID -o value /dev/md/data)
 
 mkdir -p /mnt/boot/loader/entries
 cat <<EOF > /mnt/boot/loader/entries/arch.conf
 title     Arch Linux
 linux     /vmlinuz-linux
 initrd    /initramfs-linux.img
-options   root=UUID=1d355b2b-b6b8-4f23-9af6-9983f1184d57 rw
+options   root=UUID=${MDDATA} rw
 EOF
 
 cat /mnt/boot/loader/entries/arch.conf
