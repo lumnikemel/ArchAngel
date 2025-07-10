@@ -1,0 +1,9 @@
+---
+- name: Partition disks
+  include_tasks: partition.yml
+
+- name: Setup encryption
+  include_tasks: encrypt.yml
+
+- name: Create ZFS pool
+  include_tasks: zfs.yml

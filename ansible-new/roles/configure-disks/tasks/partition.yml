@@ -1,0 +1,34 @@
+---
+- name: Wipe existing partitions
+  command: wipefs -a {{ item }}
+  loop: "{{ disks }}"
+
+- name: Create GPT partition table and EFI partition
+  parted:
+    device: "{{ item }}"
+    label: gpt
+    number: 1
+    part_start: 1MiB
+    part_end: 1GiB
+    name: "EFI System Partition"
+    flags: [esp]
+    state: present
+  loop: "{{ disks }}"
+
+- name: Create root partition
+  parted:
+    device: "{{ item }}"
+    label: gpt
+    number: 2
+    part_start: 1GiB
+    part_end: 100%
+    name: "Linux LUKS"
+    state: present
+  loop: "{{ disks }}"
+
+- name: Format EFI partitions
+  filesystem:
+    fstype: vfat
+    dev: "{{ item }}1"
+    opts: -F32
+  loop: "{{ disks }}"

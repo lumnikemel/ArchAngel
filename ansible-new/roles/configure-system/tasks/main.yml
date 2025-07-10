@@ -1,0 +1,48 @@
+---
+- name: Set timezone
+  file:
+    src: /usr/share/zoneinfo/{{ timezone | default('UTC') }}
+    dest: /etc/localtime
+    state: link
+
+- name: Generate locale
+  lineinfile:
+    path: /etc/locale.gen
+    line: "en_US.UTF-8 UTF-8"
+    state: present
+  notify: generate locale
+
+- name: Set locale
+  copy:
+    content: "LANG=en_US.UTF-8\n"
+    dest: /etc/locale.conf
+
+- name: Set hostname
+  copy:
+    content: "{{ hostname }}\n"
+    dest: /etc/hostname
+
+- name: Configure hosts file
+  template:
+    src: hosts.j2
+    dest: /etc/hosts
+
+- name: Create user
+  user:
+    name: "{{ username }}"
+    password: "{{ user_password | password_hash('sha512') }}"
+    groups: wheel
+    shell: /bin/bash
+    create_home: yes
+
+- name: Configure sudo
+  lineinfile:
+    path: /etc/sudoers
+    line: "%wheel ALL=(ALL) ALL"
+    validate: visudo -cf %s
+
+- name: Install and configure bootloader
+  include_tasks: bootloader.yml
+
+- name: Configure ZFS
+  include_tasks: zfs-config.yml

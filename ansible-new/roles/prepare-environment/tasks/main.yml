@@ -1,0 +1,21 @@
+---
+- name: Verify UEFI boot
+  stat:
+    path: /sys/firmware/efi/efivars
+  register: efi_vars
+  failed_when: not efi_vars.stat.exists
+
+- name: Update system clock
+  command: timedatectl set-ntp true
+
+- name: Load kernel modules
+  modprobe:
+    name: "{{ item }}"
+  loop:
+    - dm-crypt
+    - dm-mod
+
+- name: Verify ZFS module is loaded
+  command: modprobe zfs
+  register: zfs_load
+  failed_when: zfs_load.rc != 0

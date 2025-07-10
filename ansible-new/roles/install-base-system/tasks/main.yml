@@ -1,0 +1,17 @@
+---
+- name: Install base system packages
+  command: >
+    pacstrap {{ install_root }}
+    base base-devel linux linux-headers linux-firmware
+    intel-ucode openssh dhcpcd networkmanager
+    zfs-dkms zfs-utils
+
+- name: Generate fstab
+  command: genfstab -U {{ install_root }} >> {{ install_root }}/etc/fstab
+
+- name: Mount EFI partition
+  mount:
+    path: "{{ install_root }}/boot"
+    src: "{{ disks[0] }}1"
+    fstype: vfat
+    state: mounted

@@ -1,0 +1,37 @@
+---
+- name: Get LUKS device paths
+  find:
+    paths: /dev/mapper
+    patterns: "luks_*"
+  register: luks_devices
+
+- name: Create ZFS pool
+  command: >
+    zpool create -f {{ zfs_pool_name }}
+    -o ashift=13
+    -o altroot={{ install_root }}
+    -O compression=lz4
+    -O atime=off
+    -O xattr=sa
+    -O acltype=posix
+    -m none
+    {{ luks_devices.files | map(attribute='path') | join(' ') }}
+
+- name: Create ZFS datasets
+  zfs:
+    name: "{{ zfs_pool_name }}/{{ item.name }}"
+    state: present
+    extra_zfs_properties: "{{ item.properties }}"
+  loop:
+    - name: ROOT
+      properties:
+        mountpoint: none
+    - name: ROOT/default
+      properties:
+        mountpoint: /
+    - name: home
+      properties:
+        mountpoint: /home
+    - name: var
+      properties:
+        mountpoint: /var

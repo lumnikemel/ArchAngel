@@ -1,0 +1,12 @@
+---
+- name: Create LUKS containers
+  luks_device:
+    device: "{{ item }}2"
+    name: "luks_{{ item | basename }}"
+    passphrase: "{{ luks_passphrase }}"
+    type: luks2
+    cipher: aes-xts-plain64
+    hash: sha512
+    keysize: 512
+    state: opened
+  loop: "{{ disks }}"

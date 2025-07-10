@@ -1,0 +1,11 @@
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+  vars:
+    disks:
+      - /dev/nvme0n1
+      #- /dev/nvme1n1
+    timezone: America/Chicago
+    target_hostname: myarch
+    target_username: myuser

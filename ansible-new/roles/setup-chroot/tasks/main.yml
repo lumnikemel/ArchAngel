@@ -1,0 +1,20 @@
+---
+- name: Create chroot connection script
+  template:
+    src: arch-chroot.j2
+    dest: /usr/local/bin/arch-chroot-ansible
+    mode: '0755'
+
+- name: Mount required filesystems for chroot
+  mount:
+    path: "{{ install_root }}/{{ item.path }}"
+    src: "{{ item.src }}"
+    fstype: "{{ item.fstype }}"
+    opts: "{{ item.opts | default(omit) }}"
+    state: mounted
+  loop:
+    - { path: "proc", src: "proc", fstype: "proc" }
+    - { path: "sys", src: "sys", fstype: "sysfs" }
+    - { path: "dev", src: "udev", fstype: "devtmpfs" }
+    - { path: "dev/pts", src: "devpts", fstype: "devpts", opts: "gid=5,mode=620" }
+    - { path: "run", src: "/run", fstype: "none", opts: "bind" }
