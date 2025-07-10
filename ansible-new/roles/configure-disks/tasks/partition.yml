@@ -29,6 +29,6 @@
 - name: Format EFI partitions
   filesystem:
     fstype: vfat
-    dev: "{{ item }}1"
+    dev: "{{ item }}p1"
     opts: -F32
   loop: "{{ disks }}"
