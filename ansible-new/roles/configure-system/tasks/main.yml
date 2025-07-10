@@ -48,14 +48,10 @@
     validate: visudo -cf %s
 
 - name: Enable NetworkManager
-  systemd:
-    name: NetworkManager
-    enabled: yes
+  command: systemctl enable NetworkManager
 
 - name: Enable SSH daemon
-  systemd:
-    name: sshd
-    enabled: yes
+  command: systemctl enable sshd
 
 - name: Install and configure bootloader
   include_tasks: bootloader.yml
