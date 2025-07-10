@@ -1,0 +1,18 @@
+---
+- name: Enable ZFS services
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+  loop:
+    - zfs.target
+    - zfs-import-cache
+    - zfs-mount
+    - zfs-import.target
+
+- name: Generate host id
+  command: zgenhostid $(hostid)
+  args:
+    creates: /etc/hostid
+
+- name: Set ZFS cache file
+  command: zpool set cachefile=/etc/zfs/zpool.cache {{ zfs_pool_name }}

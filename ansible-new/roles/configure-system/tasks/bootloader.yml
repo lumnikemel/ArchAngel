@@ -1,0 +1,47 @@
+---
+- name: Install bootloader packages
+  package:
+    name:
+      - efibootmgr
+      - mkinitcpio-sd-zfs
+    state: present
+
+- name: Configure mkinitcpio hooks
+  lineinfile:
+    path: /etc/mkinitcpio.conf
+    regexp: '^HOOKS='
+    line: 'HOOKS=(base systemd autodetect modconf keyboard sd-vconsole block sd-encrypt sd-zfs usr filesystems shutdown)'
+
+- name: Configure mkinitcpio modules
+  lineinfile:
+    path: /etc/mkinitcpio.conf
+    regexp: '^MODULES='
+    line: 'MODULES=(vfat)'
+
+- name: Install systemd-boot
+  command: bootctl install
+
+- name: Create loader configuration
+  copy:
+    content: |
+      timeout 10
+      console-mode keep
+      default arch.conf
+    dest: /boot/loader/loader.conf
+
+- name: Create boot entry
+  template:
+    src: arch.conf.j2
+    dest: /boot/loader/entries/arch.conf
+
+- name: Configure crypttab for initramfs
+  lineinfile:
+    path: /etc/crypttab.initramfs
+    line: "luks_{{ item | basename }} {{ disk_partitions[item].root }} none timeout=10s,cipher=aes-xts-plain64:sha512,size=512,discard"
+    create: yes
+  loop: "{{ disks }}"
+
+- name: Generate initramfs
+  command: mkinitcpio -p linux
+
+#**roles/configure-system/templates/arch.conf.j2**

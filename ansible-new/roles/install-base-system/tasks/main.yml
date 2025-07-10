@@ -12,6 +12,6 @@
 - name: Mount EFI partition
   mount:
     path: "{{ install_root }}/boot"
-    src: "{{ disks[0] }}1"
+    src: "{{ disk_partitions[disks[0]].efi }}"
     fstype: vfat
     state: mounted

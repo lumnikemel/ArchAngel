@@ -12,7 +12,20 @@
     hostname: "{{ target_hostname | default('archbox') }}"
     username: "{{ target_username | default('arch') }}"
     user_password: "{{ vault_user_password | default('password') }}"
-    
+    partition_helper:
+    get_partition: |
+      {% set ns = namespace(result=[]) %}
+      {% for disk in disks %}
+        {% set suffix = 'p' if 'nvme' in disk else '' %}
+        {% set _ = ns.result.append({
+          'disk': disk,
+          'suffix': suffix,
+          'efi': disk + suffix + '1',
+          'root': disk + suffix + '2'
+        }) %}
+      {% endfor %}
+      {{ ns.result }}
+
   tasks:
     - name: Prepare installation environment
       include_role:

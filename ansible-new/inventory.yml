@@ -3,9 +3,13 @@ all:
     localhost:
       ansible_connection: local
   vars:
+    # Examples of different disk types
     disks:
-      - /dev/nvme0n1
-      #- /dev/nvme1n1
+      - /dev/nvme0n1    # Will create /dev/nvme0n1p1, /dev/nvme0n1p2
+      #- /dev/nvme1n1    # Will create /dev/nvme1n1p1, /dev/nvme1n1p2
+      # - /dev/sda      # Would create /dev/sda1, /dev/sda2
+      # - /dev/sdb      # Would create /dev/sdb1, /dev/sdb2
     timezone: America/Chicago
     target_hostname: myarch
     target_username: myuser
+

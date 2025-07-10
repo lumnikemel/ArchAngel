@@ -1,7 +1,7 @@
 ---
 - name: Create LUKS containers
   luks_device:
-    device: "{{ item }}2"
+    device: "{{ disk_partitions[item].root }}"
     name: "luks_{{ item | basename }}"
     passphrase: "{{ luks_passphrase }}"
     type: luks2

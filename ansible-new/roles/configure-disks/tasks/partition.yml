@@ -26,9 +26,14 @@
     state: present
   loop: "{{ disks }}"
 
+- name: Set partition suffix (p for NVMe, empty for others)
+  set_fact:
+    disk_partitions: "{{ disk_partitions | default({}) | combine({item: {'suffix': 'p' if 'nvme' in item else '', 'efi': item + ('p' if 'nvme' in item else '') + '1', 'root': item + ('p' if 'nvme' in item else '') + '2'}}) }}"
+  loop: "{{ disks }}"
+
 - name: Format EFI partitions
   filesystem:
     fstype: vfat
-    dev: "{{ item }}p1"
+    dev: "{{ disk_partitions[item].efi }}"
     opts: -F32
   loop: "{{ disks }}"
