@@ -27,9 +27,9 @@
     #   include_role:
     #     name: install-base-system
         
-    # - name: Configure chroot environment
-    #   include_role:
-    #     name: setup-chroot
+    - name: Configure chroot environment
+      include_role:
+        name: setup-chroot
         
     - name: Configure system (in chroot)
       include_role:
