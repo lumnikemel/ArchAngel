@@ -1,0 +1,182 @@
+alt_root: /mnt
+ssh_alt_port: 8095
+
+#ansible_ssh_private_key_file: ~/.ssh/CommonKey
+hostname: erebus
+user_timezone: "America/Chicago"
+luks_passphrase: password
+
+  # Bootdisk Options:
+  # auto - Creates the same partition layout on each disk in ZFS root zpool, but sets boot-device to first disk found.
+  # /dev/disk/by-id/xxx - Sets bootdisk to this path. If path is a disk found in zpool, then all disks still get the same partition layout.
+  #                       Otherwise, the disk is assumed to be separate from zpool, and all zpool disks are fully utilized.
+boot_disk: auto # Default: auto || /dev/disk/by-id/xxx
+
+  # Layout Options:
+  # single - first device found by selector will be used, and remaining ignored.
+  # raid1 - first two devices found by selector will be mirrored, and remanaining will become spares.
+  # raid0 - stripes across all devices found by selector.
+  # raid10 - mirrors each pair of devices, in order, and stripes across them; requires an even number of devices.
+  # raidzX - uses the first X devices for raidz, then remaining are spares.
+  # defined - Custom layout defined by user in zfs_zroot_devices; zfs_zroot_selector is ignored.
+zfs_zroot_layout: raid0 # Default: single || raid1 || raid0 || raid10 || raidz1 || raidz2 || defined
+
+  # Selector Options:
+  # defined - uses defined list of devices from zfs_zroot_devices variable.
+  # largest - automatically finds the largest disk, and includes any disk matching that size.
+  # search - finds all disks that contains the search string.
+  # smallest - automatically finds the smallest disk, and includes any disk matching that size.
+zfs_zroot_selector: path # Default: path || largest || search || smallest
+
+  # Only used if zfs_zroot_selector is 'path' or zfs_zroot_layout is 'defined', otherwise ignored.
+zfs_zroot_devices:
+  - /dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NU0W503572T
+  - /dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W437964N
+  #   - /dev/disk/by-id/scsi-36000c299df63ca00e65c101b69c3625a
+  #   - /dev/disk/by-id/scsi-36000c29daffb33d0d6c27bc90e217bf6
+  #   - /dev/disk/by-id/scsi-36000c295f8ab6a6c81d0273736616b9e
+  #   - /dev/disk/by-id/scsi-36000c29259ff3887f7b2c44b5aad22ef
+
+  # Use when zfs_zroot_layout == 'defined'
+# zfs_zroot_devices: |
+  #   mirror
+  #     /dev/disk/by-id/scsi-36000c29259ff3887f7b2c44b5aad22ef
+  #     /dev/disk/by-id/scsi-36000c29259ff3887f7b2c44b5aad22ef
+  #   mirror
+  #     /dev/disk/by-id/scsi-36000c29259ff3887f7b2c44b5aad22ef
+  #     /dev/
+
+
+
+
+cowspace: /run/archiso/cowspace
+swap: false
+fde_passphrase: 'password'
+zfs_zpool_name: zroot
+zfs_zpool_type: stripe
+zfs_zpool_swap: false
+boot_devices: root # Default: root - Use root 1st partition of root device(s) || xxx from /dev/disk/by-id/xxx
+#boot_devices: /dev/disk/by-id/imabootdevice1 # Default: root - Use root 1st partition of root device(s) || xxx from /dev/disk/by-id/xxx
+# boot_devices: 
+#   - /dev/disk/by-id/imabootdevice1
+#   - /dev/disk/by-id/imabootdevice2
+root_devices:
+  - /dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NU0W503572T
+  - /dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W437964N
+# root_devices:
+#   - /dev/disk/by-id/scsi-36000c299df63ca00e65c101b69c3625a
+#   - /dev/disk/by-id/scsi-36000c29daffb33d0d6c27bc90e217bf6
+
+devices: 
+  - name: nvme-Samsung_SSD_980_PRO_2TB_S6B0NU0W503572T
+    id: nvme-Samsung_SSD_980_PRO_2TB_S6B0NU0W503572T
+    path: /dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NU0W503572T
+    root_device: true
+    boot_device: true
+    partitions:
+      - name: EFI System
+        purpose: boot
+        part_num: 1
+        size: 1GiB
+        fstype: vfat
+        id: nvme-Samsung_SSD_980_PRO_2TB_S6B0NU0W503572T-part1
+        path: /dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NU0W503572T-part1
+        flags: [esp]
+        #uuid: none # UUID located in /dev/disk/by-uuid
+      - name: Linux LUKS
+        purpose: zfs
+        part_num: 2
+        size: 100%
+        fstype: None
+        id: nvme-Samsung_SSD_980_PRO_2TB_S6B0NU0W503572T-part2
+        path: /dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NU0W503572T-part2
+        flags: []
+        #uuid: "{{ arch_install_bootdrive_data_part_uuid_out.stdout }}" # UUID located in /dev/disk/by-uuid
+  - name: nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W437964N
+    id: nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W437964N
+    path: /dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W437964N
+    root_device: true
+    boot_device: true
+    partitions:
+      - name: EFI System
+        purpose: boot
+        part_num: 1
+        size: 1GiB
+        fstype: vfat
+        id: nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W437964N-part1
+        path: /dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W437964N-part1
+        flags: [esp]
+        #uuid: none # UUID located in /dev/disk/by-uuid
+      - name: Linux LUKS
+        purpose: zfs
+        part_num: 2
+        size: 100%
+        fstype: None
+        id: nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W437964N-part2
+        path: /dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W437964N-part2
+        flags: []
+        #uuid: "{{ arch_install_bootdrive_data_part_uuid_out.stdout }}" # UUID located in /dev/disk/by-uuid
+
+fde:
+  luks:
+    prefix: 'luks_zfs_' # prefix the device.id, becomes the name under /dev/mapper
+    cipher: aes-xts-plain64
+    size: '512'
+    hash: sha512
+    iteration_time: '3000'
+    timeout: 10s # timeout=10s
+    discard: true # Just 'discard' in string
+    password_echo: no # password-echo=no
+  headers:
+    path:    /boot # Location to store dmcrypt headers
+    prefix: 'cryptheader-'
+    suffix: '.img'
+  passphrase: 'password'
+zfs:
+  zpool:
+    name: "{{ zfs_zpool_name | default('rpool') }}"
+    type: "{{ zfs_zpool_type | default('stripe') }}" # stripe || mirror
+    vdev_layout: "dm-name-{{ fde.luks.prefix }}nvme-Samsung_SSD_980_PRO_2TB_S6B0NU0W503572T-part2 dm-name-{{ fde.luks.prefix }}nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W437964N-part2"
+    options:
+      ashift: '13'
+      compression: lz4
+      xattr: sa
+      atime: 'off'
+      acltype: posix
+      dedup: 'off'
+      checksum: 'on'
+      recordsize: 128k
+  filesystems:
+    - { name: ROOT                     , options: { mountpoint: 'none'                                             } }
+    - { name: ROOT/default             , options: { mountpoint: '/'                                                } }
+    - { name: root                     , options: { mountpoint: '/root'                                            } }
+    - { name: home                     , options: { mountpoint: '/home'                                            } }
+    - { name: var                      , options: { mountpoint: '/var'             , canmount: 'off' , xattr: 'sa' } }
+    - { name: var/lib                  , options: { mountpoint: '/var/lib'         , canmount: 'off'               } }
+    - { name: var/lib/systemd          , options: { mountpoint: '/var/lib/systemd' , canmount: 'off'               } }
+    - { name: var/lib/systemd/coredump , options: {}                                                                 }
+    - { name: var/lib/lxc              , options: {}                                                                 }
+    - { name: var/lib/lxd              , options: {}                                                                 }
+    - { name: var/lib/machines         , options: {}                                                                 }
+    - { name: var/lib/libvirt          , options: {}                                                                 }
+    - { name: var/lib/nfs              , options: {}                                                                 }
+    - { name: var/log                  , options: {}                                                                 }
+    - { name: var/log/journal          , options: { acltype: 'posixacl'                                            } }
+    - { name: var/cache                , options: {}                                                                 }
+    - { name: var/spool                , options: {}                                                                 }
+    - { name: usr                      , options: { mountpoint: '/usr'               , canmount: 'off'             } }
+    - { name: usr/local                , options: {}                                                                 }
+  zvols:
+    - name: swap
+      enabled: false
+      size: 512M
+      path: /dev/zvol/{{ zfs_zpool_name }}/swap
+      options:
+        logbias: throughput
+        sync: always
+        cachetype: metadata
+        snapshots: false
+
+bootloader:
+  title: Arch Linux
+  options: "root=zfs:{{ zfs.zpool.name }}/ROOT/default rw intel_iommu=on iommu=pt"

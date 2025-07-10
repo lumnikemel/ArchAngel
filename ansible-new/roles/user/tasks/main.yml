@@ -1,0 +1,50 @@
+- name: Add wheel-group to sudoers - %wheel ALL= ALL, should be '%wheel ALL=(ALL) ALL'
+  community.general.sudoers:
+    name: 00_admins_wheel
+    state: present
+    group: wheel
+    host: ALL
+    commands: ALL
+    nopassword: false
+
+- name: Enable pacman to run passwordless for {{ user_name }} - arch ALL= /usr/bin/pacman
+  community.general.sudoers:
+    name: 10_users_{{ user_name }}_pacman
+    state: present
+    user: "{{ user_name }}"
+    host: ALL
+    commands: /usr/bin/pacman
+    nopassword: true
+
+#- name: Create default user (arch)
+#  shell: useradd -m -g users -G wheel,storage,power -s /bin/bash arch
+
+- name: Add the user {{ user_name }}
+  ansible.builtin.user:
+    name: "{{ user_name }}"
+    password: "{{ user_password | password_hash('sha512') }}"
+    comment: Default and admin user
+    uid: 1000
+    shell: /bin/bash
+    groups: wheel,storage,power
+    append: yes
+    state: present
+
+- name: Set password for default user ({{ user_name }})
+  shell: echo "{{ user_name }}:{{ user_password }}" | chpasswd
+
+- name: Ensure {{ user_name }}/.ssh dir exists
+  file: 
+    path: '/home/{{ user_name }}/.ssh'
+    state: directory
+    owner: "{{ user_name }}"
+    group: "{{ user_name }}"
+    mode: '0600'
+
+- name: Copy public-key to new user
+  ansible.builtin.copy:
+    src:   ./files/CommonKey.pub
+    dest:  '/home/{{ user_name }}/.ssh/authorized_keys'
+    owner: "{{ user_name }}"
+    group: "{{ user_name }}"
+    mode: '0644'

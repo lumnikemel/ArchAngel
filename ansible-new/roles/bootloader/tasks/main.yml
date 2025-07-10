@@ -1,0 +1,147 @@
+- name: Ensure bootdrive is mounted
+  ansible.posix.mount:
+    path: /boot
+    src: "{{ item[0].partitions[0].path }}"
+    fstype: "vfat"
+    state: mounted
+  loop: "{{ devices | subelements('partitions') }}"
+  when: item.1.purpose == 'boot'
+
+- name: Install bootloader
+  command: bootctl --path=/boot install
+
+- name: Configure bootloader arch.conf
+  copy:
+    dest: /boot/loader/entries/arch.conf
+    content: |
+      title     {{ bootloader.title }}
+      linux     /vmlinuz-linux
+      initrd    /initramfs-linux.img
+      options   {{ bootloader.options }}
+
+- name: Configure loader.conf - timeout
+  ansible.builtin.lineinfile:
+    path: /boot/loader/loader.conf
+    regexp: '^#?timeout'
+    line: timeout 10
+    create: yes
+
+- name: Configure loader.conf - console-mode
+  ansible.builtin.lineinfile:
+    path: /boot/loader/loader.conf
+    regexp: '^#?console-mode'
+    line: console-mode keep
+    create: yes
+
+- name: Configure hooks in mkinitcpio.conf
+  ansible.builtin.lineinfile:
+    path: /etc/mkinitcpio.conf
+    regexp: '^#?HOOKS=.*'
+    line: HOOKS=(base systemd autodetect modconf keyboard sd-vconsole block sd-encrypt sd-zfs usr filesystems shutdown)
+    create: True
+
+- name: Configure modules in mkinitcpio.conf
+  ansible.builtin.lineinfile:
+    path: /etc/mkinitcpio.conf
+    regexp: '^#?MODULES=.*'
+    line: MODULES=(vfat) 
+
+- name: Create systemd-hook sd-zfs - Install base-devel to get fakeroot so we can makepkg
+  community.general.pacman:
+    name: base-devel
+    state: present
+  
+- name: Create systemd-hook sd-zfs - Install mkinitcpio
+  community.general.pacman:
+    name: mkinitcpio
+    state: present
+    
+- name: Install systemd-hook sd-zfs
+  become: yes
+  become_user: aur_builder
+  aur:
+    name: mkinitcpio-sd-zfs
+
+- name: Ensure efibootmgr is present
+  pacman:
+    name: efibootmgr
+    state: present
+
+- name: Create EFI/netboot directory
+  file:
+    path: /boot/EFI/netboot
+    state: directory
+
+- name: Register boot_device
+  shell: lsblk -o ID-link,mountpoint | awk '/\/boot/ {print $1}'
+  register: reg_boot_device
+- set_fact:
+    boot_device: "/dev/disk/by-id/{{ ( reg_boot_device.stdout.split('-') | map('trim') )[:-1] | join('-') }}"
+    boot_part: "{{ reg_boot_device.stdout.split('-')[-1].split('part')[-1] }}"
+
+- name: Install ipxe-netboot to EFI Boot Manager
+  block:
+  # - aur:
+  #     name: ipxe-netboot
+  #     state: present
+  #     update_cache: yes
+  #   become: yes
+  #   become_user: aur_builder
+  # - copy:
+  #     src: /usr/share/ipxe-netboot/ipxe.efi
+  #     dest: /boot/EFI/netboot/
+  # rescue:
+  - name: Install arch_netboot to bootdrive
+    get_url: 
+      url: https://archlinux.org/static/netboot/ipxe-arch.16e24bec1a7c.efi
+      dest: /boot/EFI/netboot/ipxe-arch.efi
+  - name: Register all EFI vars containing arch_netboot, so that they can be removed
+    shell: efibootmgr | grep -i '^Boot....\*' | grep arch_netboot | sed -e 's/^Boot\(.*\)\*.*$/\1/'
+    register: reg_cmd_efibootmgr
+  - name: Delete all EFI vars containing arch_netboot, so that only a single entry will exist on system 
+    command: efibootmgr --delete-bootnum --bootnum {{ item }}
+    loop: "{{ reg_cmd_efibootmgr.stdout_lines }}"  
+  - name: Install arch_netboot to EFI vars
+    command: efibootmgr --create --disk {{ boot_device }} --part {{ boot_part }} --label arch_netboot --loader \\EFI\\netboot\\ipxe-arch.efi
+
+- name: Install netboot.xyz to EFI Boot Manager
+  block:
+  - name: Install netboot.xyz to bootdrive
+    get_url:
+      url: https://boot.netboot.xyz/ipxe/netboot.xyz.efi
+      dest: /boot/EFI/netboot/netboot.xyz.efi
+  - name: Register all EFI vars containing netboot.xyz, so that they can be removed
+    shell: efibootmgr | grep -i '^Boot....\*' | grep netboot.xyz | sed -e 's/^Boot\(.*\)\*.*$/\1/'
+    register: reg_cmd_efibootmgr
+  - name: Delete all EFI vars containing netboot.xyz, so that only a single entry will exist on system 
+    command: efibootmgr --delete-bootnum --bootnum {{ item }}
+    loop: "{{ reg_cmd_efibootmgr.stdout_lines }}"  
+  - name: Install netboot.xyz to EFI vars
+    command: efibootmgr --create --disk {{ boot_device }} --part {{ boot_part }} --label netboot.xyz --loader \\EFI\\netboot\\netboot.xyz.efi
+
+- name: Install {{ bootloader.title }} to EFI Boot Manager
+  block:
+  - name: Register all EFI vars containing {{ bootloader.title }}, so that they can be removed
+    shell: efibootmgr | grep -i '^Boot....\*' | grep {{ bootloader.title }} | sed -e 's/^Boot\(.*\)\*.*$/\1/'
+    register: reg_cmd_efibootmgr
+  - name: Delete all EFI vars containing {{ bootloader.title }}, so that only a single entry will exist on system 
+    command: efibootmgr --delete-bootnum --bootnum {{ item }}
+    loop: "{{ reg_cmd_efibootmgr.stdout_lines }}"  
+  - name: Install {{ bootloader.title }} to EFI vars
+    command: bootctl --efi-boot-option-description='{{ bootloader.title }}' --path=/boot install
+
+- name: Update /etc/crypttab.initramfs with root LUKS partitions
+  ansible.builtin.lineinfile:
+    path: /etc/crypttab.initramfs
+    search_string: "{{ item.1.id }}"
+    line: "{{ fde.luks.prefix + item.1.id }} {{ item.1.path }} none timeout={{ fde.luks.timeout }},cipher={{ fde.luks.cipher }}:{{ fde.luks.hash }},size={{ fde.luks.size }}{{ ',discard' if fde.luks.discard else '' }}{{ ',password-echo=no' if not fde.luks.password_echo else '' }}"
+    state: present
+    create: yes
+    owner: root
+    group: root
+    mode: '0600'
+  loop: "{{ devices | subelements('partitions') }}"
+  when: item.1.purpose == 'zfs'
+
+- name: Build init-RAM-disk
+  command: mkinitcpio -p linux
