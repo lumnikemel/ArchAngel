@@ -43,5 +43,3 @@
 
 - name: Generate initramfs
   command: mkinitcpio -p linux
-
-#**roles/configure-system/templates/arch.conf.j2**

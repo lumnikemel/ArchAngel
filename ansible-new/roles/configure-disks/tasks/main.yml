@@ -2,6 +2,10 @@
 - name: Partition disks
   include_tasks: partition.yml
 
+- name: Debug disk partitions after partitioning
+  debug:
+    var: disk_partitions
+
 - name: Setup encryption
   include_tasks: encrypt.yml
 

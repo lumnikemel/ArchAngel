@@ -1,9 +1,19 @@
 ---
-- name: Get LUKS device paths
-  find:
-    paths: /dev/mapper
-    patterns: "luks_*"
-  register: luks_devices
+- name: Build LUKS device list for ZFS
+  set_fact:
+    luks_device_paths: "{{ luks_device_paths | default([]) + ['/dev/mapper/luks_' + (item | basename)] }}"
+  loop: "{{ disks }}"
+
+- name: Debug LUKS device paths
+  debug:
+    var: luks_device_paths
+
+- name: Verify LUKS devices exist
+  stat:
+    path: "{{ item }}"
+  register: luks_device_check
+  loop: "{{ luks_device_paths }}"
+  failed_when: not luks_device_check.stat.exists
 
 - name: Create ZFS pool
   command: >
@@ -15,7 +25,8 @@
     -O xattr=sa
     -O acltype=posix
     -m none
-    {{ luks_devices.files | map(attribute='path') | join(' ') }}
+    {{ zfs_pool_type if zfs_pool_type != 'stripe' else '' }}
+    {{ luks_device_paths | join(' ') }}
 
 - name: Create ZFS datasets
   zfs:

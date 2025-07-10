@@ -1,4 +1,8 @@
 ---
+- name: Debug disk partitions
+  debug:
+    var: disk_partitions
+
 - name: Create LUKS containers
   luks_device:
     device: "{{ disk_partitions[item].root }}"
@@ -10,3 +14,10 @@
     keysize: 512
     state: opened
   loop: "{{ disks }}"
+
+- name: Verify LUKS containers are created and opened
+  stat:
+    path: "/dev/mapper/luks_{{ item | basename }}"
+  register: luks_check
+  loop: "{{ disks }}"
+  failed_when: not luks_check.stat.exists

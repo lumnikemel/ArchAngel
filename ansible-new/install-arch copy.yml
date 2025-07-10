@@ -8,12 +8,24 @@
   vars:
     install_root: /mnt
     zfs_pool_name: rpool
-    zfs_pool_type: "{{ 'mirror' if (disks | length) == 2 else 'stripe' }}"  # auto-detect pool type
     luks_passphrase: "{{ vault_luks_passphrase | default('password') }}"
     hostname: "{{ target_hostname | default('archbox') }}"
     username: "{{ target_username | default('arch') }}"
     user_password: "{{ vault_user_password | default('password') }}"
-    
+    partition_helper:
+    get_partition: |
+      {% set ns = namespace(result=[]) %}
+      {% for disk in disks %}
+        {% set suffix = 'p' if 'nvme' in disk else '' %}
+        {% set _ = ns.result.append({
+          'disk': disk,
+          'suffix': suffix,
+          'efi': disk + suffix + '1',
+          'root': disk + suffix + '2'
+        }) %}
+      {% endfor %}
+      {{ ns.result }}
+
   tasks:
     - name: Prepare installation environment
       include_role:
