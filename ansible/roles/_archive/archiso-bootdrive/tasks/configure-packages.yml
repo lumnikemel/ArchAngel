@@ -1,0 +1,7 @@
+########## Pacstrap base system packages ##########
+### linux required for mkinicpio linux-preset.
+### linux-headers required for zfs-dkms package.
+- name: pacstrap | Pacstrap base system packages
+  shell: pacstrap {{ altroot }}/{{ zfs.zpool.name }} {{ item }} #efibootmgr mkinitcpio git efitools wget  sudo 
+  loop: "{{ packages_to_pacstrap }}"
+  tags: [ pacstrap ]

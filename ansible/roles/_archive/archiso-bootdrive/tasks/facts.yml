@@ -1,0 +1,72 @@
+- name: Determine drives to use when not specified by user
+  block:
+    - name: Calculate size and store full paths for eligible drives
+      set_fact:
+        drives_with_sizes: "{{ drives_with_sizes | default([]) + [{'path': '/dev/disk/by-id/' + (item.value.links.ids | first), 'size': (item.value.sectors | int) * (item.value.sectorsize | int)}] }}"
+      loop: "{{ ansible_facts.devices | dict2items }}"
+      when: 
+        - item.value.removable == '0'
+        - item.value.vendor is not none
+        - item.value.vendor != ''
+        - item.value.links.ids | length > 0
+      vars:
+        drives_with_sizes: []
+
+    - name: Find the full path of the smallest drive
+      set_fact:
+        smallest_drive_path: "{{ drives_with_sizes | sort(attribute='size') | map(attribute='path') | first }}"
+
+    - name: Extract the size of the smallest drive as a number
+      set_fact:
+        smallest_drive_size: "{{ (drives_with_sizes | sort(attribute='size') | first).size }}"
+
+    - name: List all drives that match the smallest drive size
+      set_fact:
+        drives_matching_smallest_size: "{{ drives_with_sizes | selectattr('size', 'equalto', smallest_drive_size | int) | map(attribute='path') | list }}"
+
+    - name: Find the full path of the largest drive
+      set_fact:
+        largest_drive_path: "{{ drives_with_sizes | sort(attribute='size', reverse=true) | map(attribute='path') | first }}"
+
+    - name: Extract the size of the largest drive as a number
+      set_fact:
+        largest_drive_size: "{{ (drives_with_sizes | sort(attribute='size', reverse=true) | first).size }}"
+
+    - name: List all drives that match the largest drive size
+      set_fact:
+        drives_matching_largest_size: "{{ drives_with_sizes | selectattr('size', 'equalto', largest_drive_size | int) | map(attribute='path') | list }}"
+
+
+    - name: Debug the structure of drives_with_sizes
+      debug:
+        var: drives_with_sizes
+
+    - name: largest_drive_size
+      debug:
+        msg: "{{ largest_drive_size }}"
+
+    - name: drives_matching_largest_size
+      debug:
+        msg: "{{ drives_matching_largest_size }}"
+
+    - name: smallest_drive_size
+      debug:
+        msg: "{{ smallest_drive_size }}"
+
+    - name: drives_matching_smallest_size
+      debug:
+        msg: "{{ drives_matching_smallest_size }}"
+
+    - name: Set drives for boot partitions
+      set_fact:
+        bootdrives: "{{ drives_matching_largest_size }}"
+
+    - name: drives_matching_smallest_size
+      debug:
+        msg: "{{ item }}"
+      loop: "{{ bootdrives }}"
+
+    - name: drives_matching_smallest_size
+      debug:
+        msg: "{{ bootdrives | list }}"
+  when: bootdrives is not defined or bootdrives | length == 0

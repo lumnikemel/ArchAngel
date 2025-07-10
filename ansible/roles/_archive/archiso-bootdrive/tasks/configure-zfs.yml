@@ -1,0 +1,178 @@
+- name: ZFS | Mount bootdrive
+  ansible.posix.mount:
+    path: "{{ altroot }}/boot"
+    src: "{{ bootdrive.boot_part.path }}"
+    fstype: "{{ bootdrive.boot_part.fstype }}"
+    state: mounted
+  tags: [ bootdrive ]
+
+- name: ZFS | Register crypt devices
+  command: ls /dev/mapper
+  register: arch_install_testing_cmd_ls_dev_mapper
+  tags: [ rootdrives , rootdrives-close ]
+- debug:
+    msg: '{{ arch_install_testing_cmd_ls_dev_mapper.stdout }}'
+  tags: [ never , debug , rootdrives , rootdrives-close ]
+
+- name: ZFS | Close encrypted drives
+  when: item.id in arch_install_testing_cmd_ls_dev_mapper.stdout
+  command: cryptsetup luksClose {{ fde.luks.prefix }}{{ item.id }}
+  #ignore_errors: True
+  loop: "{{ datadrives }}"
+  tags: [ rootdrives , rootdrives-close ]
+
+- name: ZFS | Unlock encrypted root-drives
+  #when: item.id not in arch_install_testing_cmd_ls_dev_mapper.stdout
+  shell: >
+    echo -e -n {{ fde.passphrase }} | cryptsetup luksOpen {{ item.path }}
+    --header {{ altroot }}{{ fde.headers.path }}/{{ fde.headers.prefix }}{{ item.id }}{{ fde.headers.suffix }}
+    {{ fde.luks.prefix }}{{ item.id }}
+  loop: "{{ datadrives }}"
+  tags: [ rootdrives, troubleshooting-install ]
+
+#### ZFS setup on root-disk
+- name: ZFS | Register disk-id of open encrypted-drive to use in installation
+  shell: ls /dev/disk/by-id | grep CRYPT | grep {{ fde.luks.prefix }}
+  register: drive_root_zfs_disk
+  tags: [ zfsonroot, troubleshooting-install ]
+
+- name: ZFS | Print drive_root_zfs_disk
+  debug:
+    msg: "{{ drive_root_zfs_disk.stdout }}"
+  tags: [ never , debug , zfsonroot, troubleshooting-install ]
+
+- name: ZFS | Setting fact from registered disk-id
+  ansible.builtin.set_fact:
+    drive_root_zfs_ID: "{{ drive_root_zfs_disk.stdout | split('\n') | list }}"
+  tags: [ zfsonroot, troubleshooting-install ]
+
+- name: ZFS | Print drive_root_zfs_ID
+  debug:
+    msg: "{{ drive_root_zfs_ID }}"
+  tags: [ never , debug , zfsonroot, troubleshooting-install ]
+
+- name: ZFS | Populate zfs.datadrives var
+  set_fact:
+    zfs_datadrives: []
+
+- name: ZFS | Populate zfs.datadrives var
+  set_fact:
+    zfs_datadrives: "{{ zfs_datadrives + [{'id': item, 'path': '/dev/disk/by-id/' + item}] }}"
+  loop: "{{ drive_root_zfs_ID }}"
+
+#- name: ZFS | Print zfs.datadrives var
+#  debug:
+#    msg: "{{ zfs_datadrives }}"
+#  tags: [ never , debug , zfsonroot, troubleshooting-install ]
+#
+#- name: ZFS | Update zfs variable with zfs_datadrives
+#  set_fact:
+#    zfs: "{{ zfs | combine({'zpool': zfs.zpool | combine({'datadrives': zfs_datadrives})}) }}"
+#
+#- name: ZFS | Print zfs
+#  debug:
+#    msg: "{{ zfs }}"
+#  tags: [ never , debug , zfsonroot, troubleshooting-install ]
+
+- name: ZFS | Put zfs-drive paths into stripe format
+  ansible.builtin.set_fact:
+    arch_install_zfsonroot_stripe_paths: "{{ zfs_datadrives | map(attribute='path') | join(' ') }}"
+    #arch_install_zfsonroot_stripe_paths: "{{ zfs.zpool.datadrives | map(attribute='path') | join(' ') }}"
+  tags: [ zfsonroot ]
+
+- name: ZFS | Print arch_install_zfsonroot_stripe_paths
+  debug:
+    msg: "{{ arch_install_zfsonroot_stripe_paths }}"
+  tags: [ never , debug , zfsonroot ]
+
+- name: ZFS | Create {{ zfs.zpool.name }} zpool
+  when: bootstrap == true
+  command: >-
+    zpool create -f {{ zfs.zpool.name }}
+    -o ashift={{ zfs.zpool.options.ashift }}
+    -o altroot={{ altroot }}/{{ zfs.zpool.name }}
+    -O compression={{ zfs.zpool.options.compression }}
+    -O xattr={{ zfs.zpool.options.xattr }}
+    -O atime={{ zfs.zpool.options.atime }}
+    -O acltype={{ zfs.zpool.options.acltype }}
+    -O dedup={{ zfs.zpool.options.dedup }}
+    -O checksum={{ zfs.zpool.options.checksum }}
+    -O recordsize={{ zfs.zpool.options.recordsize }}
+    -m none {{ 'mirror' if zfs.zpool.type == 'mirror' }} {{ arch_install_zfsonroot_stripe_paths }}
+  tags: [ zfsonroot ]
+
+
+- name: ZFS | Create ZFS datasets
+  when: bootstrap == true
+  command: zfs create {{ item.options }} {{ zfs.zpool.name }}{{ item.name }}
+  loop: '{{ zfs.filesystems }}'
+  tags: [ zfsonroot ]
+
+- name: ZFS | Set ZFS boot-filesystem
+  when: bootstrap == true
+  command: zpool set bootfs={{ zfs.zpool.name }}{{ (zfs.filesystems |  selectattr('options', 'regex', 'mountpoint=\/$') | list | first).name }} {{ zfs.zpool.name }}
+  #command: zpool set bootfs=zroot/sys/system/ROOT/default {{ zfs.zpool.name }}
+  tags: [ zfsonroot ]
+
+- name: ZFS | Create swap on ZFS
+  when: zfs.swap == true and bootstrap == true
+  command: >-
+    zfs create -V {{ zfs.swap.size }}
+    -b $(getconf PAGESIZE) 
+    -o logbias={{ zfs.swap.logbias }} 
+    -o sync={{ zfs.swap.sync }} 
+    -o primarycache={{ zfs.swap.cachetype }} 
+    -o com.sun:auto-snapshot={{ zfs.swap.snapshots }} 
+    {{ zfs.zpool.name }}/{{ zfs.swap.name }}
+  tags: [ zfsonroot ]
+
+- name: ZFS | Create swap on ZFS
+  when: zfs.swap == true and bootstrap == true
+  command: mkswap -f {{ zfs.swap.path }}
+  tags: [ zfsonroot ]
+
+- name: ZFS | Unmount ZFS filesystems
+  command: zfs umount -a
+  tags: [ zfsonroot ]
+
+- name: ZFS | Export zpool to that it can be imported to installed system
+  command: zpool export zroot
+  ignore_errors: true
+  tags: [ zfsonroot ]
+
+- name: ZFS | Import zpool To {{ altroot }}/{{ zfs.zpool.name }}
+  #shell: zpool import -d {{ ["/dev/disk/by-id/"] | product(drive_root_zfs_ID) | map('join') | list | join(' ') }} -R /mnt/zroot zroot
+  command: zpool import -R {{ altroot }}/{{ zfs.zpool.name }} {{ zfs.zpool.name }}
+  tags: [ zfsonroot, troubleshooting-install ]
+
+- name: ZFS | Create zpool cache and copy to mounted ZROOT
+  shell: '{{ item }}'
+  loop:
+    - mkdir -p /etc/zfs
+    - mkdir -p /mnt/zroot/etc/zfs
+    - zpool set cachefile=/etc/zfs/zpool.cache zroot
+    - cp /etc/zfs/zpool.cache /mnt/zroot/etc/zfs/zpool.cache
+  tags: [ zfsonroot ]
+
+- name: ZFS | Dismount bootdrive
+  ansible.posix.mount:
+    path: "{{ altroot }}/boot"
+    state: absent
+  tags: [ bootdrive ]
+
+- name: ZFS | Mount bootdrive to ZROOT
+  ansible.posix.mount:
+    path: "{{ altroot }}/{{ zfs.zpool.name }}/boot"
+    src: "{{ bootdrive.boot_part.path }}"
+    fstype: "{{ bootdrive.boot_part.fstype }}"
+    state: mounted
+  tags: [ zfsonroot, troubleshooting-install ]
+
+- name: ZFS | Mount ZFS filesystems to ZROOT
+  ansible.posix.mount:
+    path:   "{{ altroot }}/{{ zfs.zpool.name }}{{ item.name }}"
+    src:    "{{ zfs.zpool.name }}{{ item.name }}"
+    fstype: zfs
+    state:  present
+  loop: "{{ (zfs.filesystems |  selectattr('options', 'search', 'mountpoint=legacy') | list) }}"
+  tags: [ zfsonroot ]

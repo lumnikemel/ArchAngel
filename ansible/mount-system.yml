@@ -1,0 +1,130 @@
+- name: Configure ArchISO and prepare disks
+  hosts: all
+  connection: ssh
+  remote_user: root
+  become: yes
+  gather_facts: yes
+
+  vars:
+    - ansible_port: 22
+    - ansible_ssh_pass: password
+
+  roles:
+    - role: archiso-configure-environment
+    - role: aur
+    - role: archiso-zfs-install
+
+  tasks:
+    - set_fact:
+        chrootdir: '{{ alt_root }}/{{ zfs.zpool.name }}'
+
+    - name: Mount LUKS containers
+      community.crypto.luks_device:
+        device: "{{ item.partitions[1].path }}"
+        name: "{{ fde.luks.prefix + item.partitions[1].id }}"
+        passphrase: "{{ luks_passphrase }}"
+        state: opened
+      loop: "{{ devices }}"
+
+    - name: Import zpool To {{ chrootdir }}
+      command: zpool import -R {{ chrootdir }} {{ zfs.zpool.name }}
+
+    # - name: Create zpool cache and copy to mounted ZROOT
+    #   shell: '{{ item }}'
+    #   loop:
+    #     - mkdir -p /etc/zfs
+    #     - mkdir -p {{ chrootdir }}/etc/zfs
+    #     - zpool set cachefile=/etc/zfs/zpool.cache zroot
+    #     - cp /etc/zfs/zpool.cache {{ chrootdir }}/etc/zfs/zpool.cache
+
+    - name: Mount bootdrive to ZROOT
+      ansible.posix.mount:
+        path: "{{ chrootdir }}/boot"
+        src: "{{ devices[0].partitions[0].path }}"
+        fstype: "vfat"
+        state: mounted
+
+    - name: Mount proc filesystem
+      mount:
+        src: proc
+        path: "{{ chrootdir }}/proc"
+        fstype: proc
+        opts: nosuid,noexec,nodev
+        state: mounted
+
+    - name: Mount sys filesystem
+      mount:
+        src: sys
+        path: "{{ chrootdir }}/sys"
+        fstype: sysfs
+        opts: nosuid,noexec,nodev,ro
+        state: mounted
+
+    - name: Mount efivarfs filesystem (if exists)
+      mount:
+        src: efivarfs
+        path: "{{ chrootdir }}/sys/firmware/efi/efivars"
+        fstype: efivarfs
+        opts: nosuid,noexec,nodev
+        state: mounted
+      when: chrootdir ~ '/sys/firmware/efi/efivars' is directory
+      ignore_errors: yes
+
+    - name: Mount udev filesystem
+      mount:
+        src: udev
+        path: "{{ chrootdir }}/dev"
+        fstype: devtmpfs
+        opts: mode=0755,nosuid
+        state: mounted
+
+    - name: Mount devpts filesystem
+      mount:
+        src: devpts
+        path: "{{ chrootdir }}/dev/pts"
+        fstype: devpts
+        opts: mode=0620,gid=5,nosuid,noexec
+        state: mounted
+
+    - name: Mount shm filesystem
+      mount:
+        src: shm
+        path: "{{ chrootdir }}/dev/shm"
+        fstype: tmpfs
+        opts: mode=1777,nosuid,nodev
+        state: mounted
+
+    - name: Bind mount /run
+      mount:
+        src: /run
+        path: "{{ chrootdir }}/run"
+        fstype: none
+        opts: bind
+        state: mounted
+
+    - name: Mount tmp filesystem
+      mount:
+        src: tmp
+        path: "{{ chrootdir }}/tmp"
+        fstype: tmpfs
+        opts: mode=1777,strictatime,nodev,nosuid
+        state: mounted
+
+    - name: Add chroot configuration to sshd_config
+      ansible.builtin.blockinfile:
+        path: /etc/ssh/sshd_config
+        block: |
+          Port 22
+          Port {{ ssh_alt_port }}
+          Match LocalPort {{ ssh_alt_port }}
+            ChrootDirectory {{ chrootdir }}
+            X11Forwarding no
+            AllowTcpForwarding no
+            PermitTTY yes
+        create: yes
+        insertafter: EOF
+
+    - name: Restart SSH service to apply changes
+      ansible.builtin.service:
+        name: sshd
+        state: restarted

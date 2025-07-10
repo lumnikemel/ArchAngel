@@ -1,0 +1,37 @@
+######### Snapshot Taken #################################
+#  - name: Unmount drives to complete installation
+#    ansible.posix.mount:
+#      path: '{{ item }}'
+#      state: absent
+#    loop:
+#      - /mnt/zroot/boot
+#
+#  - name: Unmount zfs filesystems to complete installation
+#    shell: zfs unmount -a
+#
+#  - name: Export zpool to complete installation
+#    shell: zpool export zroot
+#
+##  - name: Reboot
+##    ansible.builtin.reboot:
+#
+#
+#  - name: Ensure required apps are installed to support TPM
+#    community.general.pacman:
+#      name: '{{ item }}'
+#      state: present
+#      update_cache: true
+#    loop:
+#      - tpm2-tss
+#      - tpm2-tools
+#
+#  - name: Enroll TPM into LUKS
+#    command:
+#      cmd: >
+#        systemd-cryptenroll 
+#        --tpm2-device=auto 
+#        --tpm2-pcrs=0,7 
+#        --tpm2-with-pin=yes 
+#        /dev/disk/by-id/dm-name-luks_zfs
+## systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs
+#

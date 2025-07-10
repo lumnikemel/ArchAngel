@@ -1,0 +1,6 @@
+[archiso]
+arch-testing ansible_host=10.0.0.123 ansible_port=22 ansible_ssh_pass=password
+erebus ansible_host=10.0.0.129 ansible_port=22 ansible_ssh_pass=password
+
+[chroot]
+arch ansible_host=10.0.0.129 ansible_port="{{ ssh_alt_port }}" ansible_ssh_pass=password

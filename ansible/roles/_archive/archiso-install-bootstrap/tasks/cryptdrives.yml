@@ -1,0 +1,114 @@
+- name: cryptdrives | Mount bootdrive
+  ansible.posix.mount:
+    path: "{{ altroot }}/boot"
+    src: "{{ bootdrive.boot_part.path }}"
+    fstype: "{{ bootdrive.boot_part.fstype }}"
+    state: mounted
+  tags: [ bootdrive ]
+
+- name: cryptdrives | Encrypt datadrives # according to the cryptsetup FAQ, the headerfile will be created automatically if the file does not exist. Default size is 16M. I think this is all I will need.
+  when: datadrives is defined and (datadrives | length > 0) and wipe_datadrives == true
+  shell: >
+    echo -e -n {{ fde.passphrase }} | cryptsetup luksFormat -q -v
+    --cipher {{ fde.luks.cipher }}
+    -s {{ fde.luks.size }}
+    -h {{ fde.luks.hash }}
+    --iter-time {{ fde.luks.iteration_time }}
+    --use-random
+    --header {{ altroot }}{{ fde.headers.path }}/{{ fde.headers.prefix }}{{ item.id }}{{ fde.headers.suffix }} {{ item.path }}
+   #--luks2-metadata-size # Needed if I want to increase the default size
+   #--luks2-keyslots-size # Needed if I want to increase the default size
+  loop: "{{ datadrives }}"
+  tags: [ rootdrives ]
+
+- name: cryptdrives | Register crypt devices
+  command: ls /dev/mapper
+  register: arch_install_testing_cmd_ls_dev_mapper
+  tags: [ rootdrives , rootdrives-close ]
+- debug:
+    msg: '{{ arch_install_testing_cmd_ls_dev_mapper.stdout }}'
+  tags: [ never , debug , rootdrives , rootdrives-close ]
+
+- name: cryptdrives | Close encrypted drives
+  when: item.id in arch_install_testing_cmd_ls_dev_mapper.stdout
+  command: cryptsetup luksClose {{ fde.luks.prefix }}{{ item.id }}
+  #ignore_errors: True
+  loop: "{{ datadrives }}"
+  tags: [ rootdrives , rootdrives-close ]
+
+- name: cryptdrives | Unlock encrypted root-drives
+  when: item.id in arch_install_testing_cmd_ls_dev_mapper.stdout
+  shell: >
+    echo -e -n {{ fde.passphrase }} | cryptsetup luksOpen {{ item.path }}
+    --header {{ altroot }}{{ fde.headers.path }}/{{ fde.headers.prefix }}{{ item.id }}{{ fde.headers.suffix }}
+    {{ fde.luks.prefix }}{{ item.id }}
+  loop: "{{ datadrives }}"
+  tags: [ rootdrives, troubleshooting-install ]
+#############
+
+
+#- name: cryptdrives | Register disk-id of open encrypted-drive to use in installation
+#  shell: ls /dev/disk/by-id | grep CRYPT
+#  register: arch_install_drive_root_zfs_disk
+#  #ignore_errors: True
+#  tags: [ vars ]
+#
+#- name: cryptdrives | Setting fact from registered disk-id
+#  ansible.builtin.set_fact:
+#    drive_root_zfs_ID: "{{ arch_install_drive_root_zfs_disk.stdout | split(' ') | list }}"
+#  tags: [ vars ]
+
+- name: cryptdrives | Get UUIDs of luks-headers
+  shell: "cryptsetup luksDump {{ altroot }}{{ fde.headers.path }}/{{ fde.headers.prefix }}{{ item.id }}{{ fde.headers.suffix }} | grep UUID | awk '{print $2}'"
+  register: arch_install_luks_header_uuids_out
+  loop: "{{ datadrives }}"
+  changed_when: False
+  ignore_errors: true
+
+- name: cryptdrives | Extract UUIDs from luks-headers output
+  set_fact:
+    arch_install_luks_header_uuids: "{{ arch_install_luks_header_uuids_out.results | map(attribute='stdout') | list | default([]) }}"
+  ignore_errors: true
+
+- name: cryptdrives | Print arch_install_luks_header_uuids
+  debug:
+    msg: "{{ arch_install_luks_header_uuids }}"
+  tags: [ never, debug]
+  ignore_errors: true
+
+
+- name: cryptdrives | Create large_datadrives
+  when: large_datadrives is not defined
+  set_fact:
+    large_datadrives: []
+  tags: [ vars, datadrives ]
+
+#- name: cryptdrives | TEST -  Print arch_install_largest_drives_id_by_id / arch_install_luks_header_uuids
+#  when: datadrives is not defined
+#  debug:
+#    msg: |-
+#      "{{ item.0, item.1 }}"
+#  loop: "{{ arch_install_largest_drives_id_by_id | zip(arch_install_luks_header_uuids) | list }}"
+#  tags: [ never, debug, vars, datadrives ]
+  
+
+- name: cryptdrives | Populate large_datadrives
+  when: datadrives is defined
+  set_fact:
+    datadrives: "{{ large_datadrives + [{ 'id': item.0.id, 'path': '/dev/disk/by-id/' + item.0.id, 'header_uuid': item.1, }] }}"
+    #large_datadrives: "{{ large_datadrives + [{ 'id': item.0, 'path': '/dev/disk/by-id/' + item.0, 'header_uuid': item.1, }] }}"
+  loop: "{{ datadrives | zip(arch_install_luks_header_uuids) | list }}"
+  tags: [ vars, datadrives ]
+
+- name: cryptdrives | Print large_datadrives
+  when: datadrives is defined
+  debug:
+    msg: "{{ datadrives }}"
+  tags: [ never, debug, vars, datadrives ]
+
+
+- name: cryptdrives | Dismount bootdrive
+  ansible.posix.mount:
+    path: "{{ altroot }}/boot"
+    state: absent
+  tags: [ bootdrive ]

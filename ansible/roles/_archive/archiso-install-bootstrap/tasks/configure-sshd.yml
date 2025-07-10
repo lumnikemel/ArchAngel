@@ -1,0 +1,36 @@
+# configure-sshd, enable, sshd, port 2022
+- name: sshd | Listen on port 2022
+  ansible.builtin.lineinfile:
+    path: '{{ altroot }}/{{ zfs.zpool.name }}/etc/ssh/sshd_config'
+    regexp: '^#?Port'
+    line: Port 2022
+    create: yes
+  tags: [ machinectl ]
+
+- name: sshd | Disable password authentication
+  ansible.builtin.lineinfile:
+    path: '{{ altroot }}/{{ zfs.zpool.name }}/etc/ssh/sshd_config'
+    regexp: '^#?PasswordAuthentication'
+    line: PasswordAuthentication no
+    create: yes
+  tags: [ machinectl ]
+
+- name: sshd | Enable public-key authentication
+  ansible.builtin.lineinfile:
+    path: '{{ altroot }}/{{ zfs.zpool.name }}/etc/ssh/sshd_config'
+    regexp: '^#?PubkeyAuthentication'
+    line: PubkeyAuthentication yes
+    create: yes
+  tags: [ machinectl ]
+
+- name: sshd | Enable Root login
+  ansible.builtin.lineinfile:
+    path: '{{ altroot }}/{{ zfs.zpool.name }}/etc/ssh/sshd_config'
+    regexp: '^#?PermitRootLogin'
+    line: PermitRootLogin prohibit-password
+    create: yes
+  tags: [ machinectl ]
+
+- name: sshd | Enable sshd to start on boot
+  shell: systemd-nspawn -D {{ altroot }}/{{ zfs.zpool.name }} --machine={{ zfs.zpool.name }} systemctl enable sshd.service
+  tags: [ machinectl ]

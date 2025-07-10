@@ -1,0 +1,93 @@
+- name: Import system facts
+  import_role:
+    name: archiso-install-facts
+
+########## Reset install environment for testing ##########
+- name: Check if zroot machine is running
+  command: machinectl list
+  register: arch_install_testing_machinectl_zroot_running_out
+  tags: [ testing ]
+
+- name: Print machinectl list
+  debug:
+    msg: '{{ arch_install_testing_machinectl_zroot_running_out.stdout }}'
+  tags: [ never, debug, testing ]
+
+- name: Stop zroot machine
+  when:  zfs.zpool.name in arch_install_testing_machinectl_zroot_running_out.stdout
+  command: machinectl stop zroot
+  register: arch_install_testing_machinectl
+  tags: [ testing ]
+  
+- name: Wait for machine to be stopped
+  when: zfs.zpool.name in arch_install_testing_machinectl_zroot_running_out.stdout
+  command: machinectl list
+  register: cmd_res
+  retries: 5
+  delay: 5
+  until: cmd_res.stdout_lines | select('search', '^{{ zfs.zpool.name }}') | list | count == 0
+  tags: [ testing ]
+
+- name: Unmount drives
+  ansible.posix.mount:
+    path: '{{ item }}'
+    state: absent
+  loop:
+    - "{{ altroot }}/{{ zfs.zpool.name }}/boot"
+  tags: [ testing ]
+
+- name: Check any zfs mounts exist
+  command: zfs list
+  register: arch_install_testing_cmd_zfs_list
+  tags: [ testing ]
+
+- name: Unmount ZFS filesystems
+  when: zfs.zpool.name in arch_install_testing_cmd_zfs_list.stdout
+  shell: zfs umount -a
+  tags: [ testing ]
+
+- name: Remove residule ZFS filesystems and pools
+  when: zfs.zpool.name in arch_install_testing_cmd_zfs_list.stdout
+  command: zpool export zroot
+  tags: [ testing ]
+
+- name: Unmount drives
+  ansible.posix.mount:
+    path: '{{ item }}'
+    state: absent
+  loop:
+    - "{{ altroot }}/{{ zfs.zpool.name }}"
+    - "{{ altroot }}/boot"
+    - "{{ altroot }}"
+  tags: [ testing ]
+
+- name: Check if zroot zpool exists
+  command: zpool list
+  register: arch_install_testing_zpool_list_stdout
+  tags: [ testing ]
+
+- name: Destroy zpool
+  when: zfs.zpool.name in arch_install_testing_zpool_list_stdout
+  command: zpool destroy {{ zfs.zpool.name }}
+  tags: [ testing ]
+
+- name: Register crypt devices
+  command: ls /dev/mapper
+  register: arch_install_testing_cmd_ls_dev_mapper
+  tags: [ testing ]
+
+- name: Print ls /dev/mapper
+  debug:
+    msg: '{{ arch_install_testing_cmd_ls_dev_mapper.stdout }}'
+  tags: [ never, debug, testing ]
+
+- name: Close encrypted drives
+  when: zfs.zpool.datadrives is defined and item.id in arch_install_testing_cmd_ls_dev_mapper.stdout
+  command: cryptsetup luksClose {{ fde.luks.prefix }}{{ item.id }}
+  loop: "{{ zfs.zpool.datadrives }}"
+  tags: [ testing ]
+
+- name: Zero-out the boot-disk
+  command: dd if=/dev/zero of={{ fde.bootdrive.path }} bs=1M count={{ (((arch_install_boot_drive_size_bytes | int)) / (1024*1024)) | int | abs }}
+  tags: [ testing, zero ]
+

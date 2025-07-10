@@ -1,0 +1,5 @@
+- name: set timezone
+  command: timedatectl set-timezone {{ user_timezone }}
+
+- name: set ntp
+  command: timedatectl set-ntp true

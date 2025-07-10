@@ -1,0 +1,37 @@
+# configure-sshd, enable, sshd, port 2022
+- name: Listen on port 22
+  ansible.builtin.lineinfile:
+    path: '/etc/ssh/sshd_config'
+    regexp: '^#?Port'
+    line: Port 22
+    create: yes
+  notify: Restart sshd
+
+- name: Disable password authentication
+  ansible.builtin.lineinfile:
+    path: '/etc/ssh/sshd_config'
+    regexp: '^#?PasswordAuthentication'
+    line: PasswordAuthentication no
+    create: yes
+  notify: Restart sshd
+
+- name: Enable public-key authentication
+  ansible.builtin.lineinfile:
+    path: '/etc/ssh/sshd_config'
+    regexp: '^#?PubkeyAuthentication'
+    line: PubkeyAuthentication yes
+    create: yes
+  notify: Restart sshd
+
+- name: Enable Root login
+  ansible.builtin.lineinfile:
+    path: '/etc/ssh/sshd_config'
+    regexp: '^#?PermitRootLogin'
+    line: PermitRootLogin prohibit-password
+    create: yes
+  notify: Restart sshd
+
+- name: Enable service
+  systemd:
+    name: sshd
+    enabled: yes

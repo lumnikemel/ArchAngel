@@ -1,0 +1,19 @@
+# - name: Set devices fact
+#   set_fact:
+#     devices: "{{ (boot_device_facts | default([])) + (root_device_facts | default([]) | from_yaml) }}"
+
+- name: ZFS | Mount bootdrive to ZROOT
+  ansible.posix.mount:
+    path: "{{ alt_root }}/{{ zfs.zpool.name }}/boot"
+    state: absent
+
+- name: Close all ZFS and ZPOOL mounts
+  command: zpool export -a
+  
+- name: Close all open LUKS volumes
+  ansible.builtin.shell: |
+    for vol in $(ls /dev/mapper | grep 'luks_zfs_'); do
+      cryptsetup luksClose $vol # || true
+    done
+  args:
+    executable: /bin/bash

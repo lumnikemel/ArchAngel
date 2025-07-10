@@ -1,0 +1,2 @@
+- import_playbook: configure-archiso.yml
+- import_playbook: configure-system.yml

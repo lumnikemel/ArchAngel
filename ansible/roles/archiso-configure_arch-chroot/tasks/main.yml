@@ -1,0 +1,85 @@
+- set_fact:
+    chrootdir: '{{ alt_root }}/{{ zfs.zpool.name }}'
+
+- name: Create install root directories
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: '{{ chrootdir }}/var/cache/pacman/pkg', mode: '0755' }
+    - { path: '{{ chrootdir }}/var/lib/pacman', mode: '0755' }
+    - { path: '{{ chrootdir }}/var/log', mode: '0755' }
+    - { path: '{{ chrootdir }}/dev', mode: '0755' }
+    - { path: '{{ chrootdir }}/run', mode: '0755' }
+    - { path: '{{ chrootdir }}/etc/pacman.d', mode: '0755' }
+    - { path: '{{ chrootdir }}/tmp', mode: '1777' }
+    - { path: '{{ chrootdir }}/sys', mode: '0555' }
+    - { path: '{{ chrootdir }}/proc', mode: '0555' }
+
+- name: Mount proc filesystem
+  mount:
+    src: proc
+    path: "{{ chrootdir }}/proc"
+    fstype: proc
+    opts: nosuid,noexec,nodev
+    state: mounted
+
+- name: Mount sys filesystem
+  mount:
+    src: sys
+    path: "{{ chrootdir }}/sys"
+    fstype: sysfs
+    opts: nosuid,noexec,nodev,ro
+    state: mounted
+
+- name: Mount efivarfs filesystem (if exists)
+  mount:
+    src: efivarfs
+    path: "{{ chrootdir }}/sys/firmware/efi/efivars"
+    fstype: efivarfs
+    opts: nosuid,noexec,nodev
+    state: mounted
+  when: chrootdir ~ '/sys/firmware/efi/efivars' is directory
+  ignore_errors: yes
+
+- name: Mount udev filesystem
+  mount:
+    src: udev
+    path: "{{ chrootdir }}/dev"
+    fstype: devtmpfs
+    opts: mode=0755,nosuid
+    state: mounted
+
+- name: Mount devpts filesystem
+  mount:
+    src: devpts
+    path: "{{ chrootdir }}/dev/pts"
+    fstype: devpts
+    opts: mode=0620,gid=5,nosuid,noexec
+    state: mounted
+
+- name: Mount shm filesystem
+  mount:
+    src: shm
+    path: "{{ chrootdir }}/dev/shm"
+    fstype: tmpfs
+    opts: mode=1777,nosuid,nodev
+    state: mounted
+
+- name: Bind mount /run
+  mount:
+    src: /run
+    path: "{{ chrootdir }}/run"
+    fstype: none
+    opts: bind
+    state: mounted
+
+- name: Mount tmp filesystem
+  mount:
+    src: tmp
+    path: "{{ chrootdir }}/tmp"
+    fstype: tmpfs
+    opts: mode=1777,strictatime,nodev,nosuid
+    state: mounted
+

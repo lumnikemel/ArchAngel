@@ -1,0 +1,24 @@
+- name: Remove LUKS containers
+  community.crypto.luks_device:  # Replace 'debug' with your desired action
+    name: "{{ fde.luks.prefix }}{{ item.1.id }}"
+    state: absent
+  loop: "{{ devices | subelements('partitions') }}"
+  when: item.1.purpose == 'zfs'
+
+- name: Create LUKS container with specific encryption
+  community.crypto.luks_device:
+    device: "{{ item.1.path }}"
+    type: luks2
+    cipher: "{{ fde.luks.cipher }}"
+    hash: "{{ fde.luks.hash }}"
+    keysize: "{{ fde.luks.size }}"
+    pbkdf:
+      algorithm: argon2id
+      iteration_time: 3
+    allow_discards: "{{ fde.luks.discard }}"
+    name: "{{ fde.luks.prefix + item.1.id }}"
+    passphrase: "{{ luks_passphrase }}"
+    state: opened
+  loop: "{{ devices | subelements('partitions') }}"
+  when: item.1.purpose == 'zfs'
+

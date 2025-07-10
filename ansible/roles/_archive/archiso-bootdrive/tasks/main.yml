@@ -1,0 +1,150 @@
+#- name: Set required facts for role
+#  import_tasks: facts.yml
+#  tags: [ always ]
+
+#- name: Configure and mount bootdrive
+#  import_tasks: configure-bootdrive.yml
+
+#- name: Configure and install bootloader
+#  import_tasks: configure-bootloader.yml
+#  tags: [ bootloader ]
+
+#- name: Encrypt and prepare the root/data drives for ZFS-on-Root
+#  import_tasks: configure-root-drives.yml
+
+########## Reset install environment for testing ##########
+#- name: Check if zroot machine is running
+#  command: machinectl list
+#  register: arch_install_testing_machinectl_zroot_running_out
+#  tags: [ testing ]
+#
+#- name: Print machinectl list
+#  debug:
+#    msg: '{{ arch_install_testing_machinectl_zroot_running_out.stdout }}'
+#  tags: [ never, debug, testing ]
+#
+#- name: Stop zroot machine
+#  when:  zfs.zpool.name in arch_install_testing_machinectl_zroot_running_out.stdout
+#  command: machinectl stop zroot
+#  register: arch_install_testing_machinectl
+#  tags: [ testing ]
+#  
+#- name: Wait for machine to be stopped
+#  when: zfs.zpool.name in arch_install_testing_machinectl_zroot_running_out.stdout
+#  command: machinectl list
+#  register: cmd_res
+#  retries: 5
+#  delay: 5
+#  until: cmd_res.stdout_lines | select('search', '^{{ zfs.zpool.name }}') | list | count == 0
+#  tags: [ testing ]
+
+# - name: Unmount drives
+#   ansible.posix.mount:
+#     path: '{{ item }}'
+#     state: absent
+#   loop:
+#     - "{{ altroot }}/{{ zfs.zpool.name }}/boot"
+#   tags: [ testing ]
+
+# - name: Check any zfs mounts exist
+#   command: zfs list
+#   register: arch_install_testing_cmd_zfs_list
+#   tags: [ testing ]
+
+# - name: Unmount ZFS filesystems
+#   when: zfs.zpool.name in arch_install_testing_cmd_zfs_list.stdout
+#   shell: zfs umount -a
+#   tags: [ testing ]
+
+# - name: Remove residule ZFS filesystems and pools
+#   when: zfs.zpool.name in arch_install_testing_cmd_zfs_list.stdout
+#   command: zpool export {{ zfs.zpool.name }}
+#   tags: [ testing ]
+
+# - name: Unmount drives
+#   ansible.posix.mount:
+#     path: '{{ item }}'
+#     state: absent
+#   loop:
+#     - "{{ altroot }}/{{ zfs.zpool.name }}"
+#     - "{{ altroot }}/boot"
+#     - "{{ altroot }}"
+#   tags: [ testing ]
+
+# - name: Check if zroot zpool exists
+#   command: zpool list
+#   register: arch_install_testing_zpool_list_stdout
+#   tags: [ testing ]
+
+# - name: Destroy zpool
+#   when: wipe_cryptdrives == true and zfs.zpool.name in arch_install_testing_zpool_list_stdout
+#   command: zpool destroy {{ zfs.zpool.name }}
+#   tags: [ testing ]
+
+# - name: Register crypt devices
+#   command: ls /dev/mapper
+#   register: arch_install_testing_cmd_ls_dev_mapper
+#   tags: [ testing ]
+
+# - name: Print ls /dev/mapper
+#   debug:
+#     msg: '{{ arch_install_testing_cmd_ls_dev_mapper.stdout }}'
+#   tags: [ never, debug, testing ]
+
+# - name: Close encrypted drives
+#   when: zfs_datadrives is defined and item.id in arch_install_testing_cmd_ls_dev_mapper.stdout
+#   command: cryptsetup luksClose {{ fde.luks.prefix }}{{ item.id }}
+#   loop: "{{ zfs_datadrives }}"
+#   tags: [ testing ]
+
+
+#############################################################################
+
+# - name: Initialize and configure bootdrive
+#   import_tasks: bootdrive.yml
+#   tags: [ bootdrive ]
+
+# - name: Initialize and configure datadrives
+#   import_tasks: datadrives.yml
+#   tags: [ datadrives ]
+
+# - name: Initialize and configure cryptdrives
+#   import_tasks: cryptdrives.yml
+#   tags: [ cryptdrives ]
+
+# - name: Create zpool and ZFS filesystems, and configure for Root-on-ZFS
+#   import_tasks: configure-zfs.yml
+
+# - name: Configure base packages and install them into new system
+#   when: bootstrap == true
+#   import_tasks: configure-packages.yml
+
+# - name: Configure fstab
+#   when: bootstrap == true
+#   import_tasks: configure-fstab.yml
+
+# - name: Configure root with SSH-key
+#   when: bootstrap == true
+#   import_tasks: configure-root.yml
+
+# - name: Configure new system to accept SSH connection on port 2022
+#   import_tasks: configure-sshd.yml
+
+
+
+#####################
+
+- name: Set required facts for role
+  import_tasks: facts.yml
+
+- name: Configure boot-partition for single datadrive
+  when: bootdrive_architecture == 'single_rootdrive'
+  import_tasks: single-rootdrive.yml
+
+# - name: Configure boot-partition for single datadrive
+#   when: bootdrive_architecture == 'raid_rootdrive'
+#   import_tasks: raid-rootdrive.yml
+
+# - name: Configure boot-partition for single datadrive
+#   when: bootdrive_architecture == 'separate_bootdrive'
+#   import_tasks: separate_bootdrive.yml

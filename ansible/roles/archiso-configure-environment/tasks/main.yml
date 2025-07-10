@@ -1,0 +1,65 @@
+# setting up live-environment
+# ensure we are in 64-bit uefi - cat /sys/firmware/efi/fw_platform_size
+- name: Check to see if we are booting with MBR or UEFI
+  when: ansible_facts['mounts'] | selectattr('mount', 'equalto', '/sys/firmware/efi/efivars') | list | length > 0
+  debug:
+    msg: "Booted with UEFI"
+  tags: [ livecd ]
+  
+# verify internet connection - ip link, ping archlinux.org
+- name: Test reachability to {{ archiso_install_prep_ping_ip_address }}
+  command: ping {{ archiso_install_prep_ping_ip_address }} -c 2
+  tags: [ livecd ]
+  
+- name: Test reachability to {{ archiso_install_prep_ping_url }}
+  command: ping {{ archiso_install_prep_ping_url }} -c 2
+  tags: [ livecd ]
+
+# sync clock - timedatectl
+- name: Sync clock
+  command: timedatectl
+  tags: [ livecd ]
+  
+- name: Check for cowspace mountpoint
+  command: mountpoint -q {{ archiso_install_prep_cowspace_path }}
+  register: archiso_install_prep_cowspace_volume_stat
+  failed_when: False
+  changed_when: False
+  tags: [ livecd ]
+
+- name: Expand ArchISO ramdisk to {{ archiso_install_prep_cowspace_size }}
+  when: archiso_install_prep_cowspace_volume_stat.rc == 0
+  ansible.posix.mount:
+    path: /run/archiso/cowspace #"{{ archiso_install_prep_cowspace_volume_stat }}"
+    opts: size={{ archiso_install_prep_cowspace_size }} #size={{ archiso_install_prep_cowspace_size }}
+    state: remounted
+  tags: [ livecd ]
+  
+- name: Update pacman package list
+  community.general.pacman:
+    update_cache: true
+  tags: [ livecd ]
+
+- name: Update pacman keyring
+  command: >
+    pacman -S --noconfirm {{ archiso_install_prep_pacman_keyring }}
+  tags: [ livecd ]
+      
+# - name: Upgrade packages, leaving kernel untouched
+#   command: >
+#     pacman -Syu --noconfirm 
+#     --ignore={{ archiso_install_prep_pacman_packages_ignore }}
+#   tags: [ livecd ]
+
+- name: Increase cowspace to half of RAM
+  mount:
+    path: /run/archiso/cowspace
+    opts: remount,size=50%
+    state: remounted
+
+- name: Load dmcrypt kernel modules
+  community.general.modprobe:
+    name: '{{ item }}'
+    state: present
+  loop: "{{ archiso_install_prep_kernel_modules_dmcrypt }}"
+  tags: [ livecd ]

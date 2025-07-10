@@ -1,0 +1,84 @@
+- name: datadrives | Get the largest disk size and register output # Will use this to match any other drives of its size.
+  when: datadrives is not defined
+  shell: echo $(lsblk -bo size,name,type | grep disk | sort -rgb | awk '{$1=$1;print}' | cut -d " " -f 1 | head -n 1)
+  register: arch_install_largest_drive_size_out
+  tags: [ vars, datadrives ]
+- debug:
+    msg: "{{ arch_install_largest_drive_size_out }}"
+  when: datadrives is not defined
+  tags: [ never , debug, datadrives ]
+
+- name: datadrives | Get the largest disks by size and register output # Will use this to match any other drives of its size.
+  when: datadrives is not defined
+  shell: echo $(lsblk -bo size,name,type,id-link | grep disk | grep {{ arch_install_largest_drive_size_out.stdout }} | sort -rgb  | awk '{$1=$1;print}' | cut -d " " -f 4)
+  register: arch_install_largest_drives_out
+  tags: [ vars, datadrives ]
+- debug:
+    msg: "{{ arch_install_largest_drives_out }}"
+  when: datadrives is not defined
+  tags: [ never , debug, datadrives ]
+- command: lsblk
+  when: datadrives is not defined
+  register: lsblk
+  tags: [ never , debug, datadrives ]
+- debug:
+    msg: '{{ lsblk.stdout }}'
+  when: datadrives is not defined
+  tags: [ never , debug, datadrives ]
+
+- name: datadrives | Set drive_root to largest disk when it is empty or not defined
+  when: datadrives is not defined
+  ansible.builtin.set_fact:
+    arch_install_largest_drives_id_by_id: "{{ arch_install_largest_drives_out.stdout | split(' ') | list }}"
+  tags: [ vars, datadrives ]
+- debug:
+    msg: "{{ arch_install_largest_drives_id_by_id }}"
+  when: datadrives is not defined
+  tags: [ never , debug, datadrives ]
+
+- name: datadrives | Output content of drive_root to console
+  when: datadrives is not defined
+  debug:
+    msg: 'root drives are: /dev/disk/by-id/{{ item }}'
+  loop: "{{ arch_install_largest_drives_id_by_id }}"
+  tags: [ never , debug, vars, datadrives ]
+
+#- name: datadrives | Create large_datadrives
+#  when: datadrives is not defined
+#  set_fact:
+#    large_datadrives: []
+#  tags: [ vars, datadrives ]
+#
+#- name: datadrives | TEST -  Print arch_install_largest_drives_id_by_id / arch_install_luks_header_uuids
+#  when: datadrives is not defined
+#  debug:
+#    msg: |-
+#      "{{ item.0, item.1 }}"
+#  loop: "{{ arch_install_largest_drives_id_by_id | zip(arch_install_luks_header_uuids) | list }}"
+#  tags: [ never, debug, vars, datadrives ]
+#  
+#
+#- name: datadrives | Populate large_datadrives
+#  when: datadrives is not defined
+#  set_fact:
+#    large_datadrives: "{{ large_datadrives + [{ 'id': item.0, 'path': '/dev/disk/by-id/' + item.0, 'header_uuid': item.1, }] }}"
+#  loop: "{{ arch_install_largest_drives_id_by_id | zip(arch_install_luks_header_uuids) | list }}"
+#  tags: [ vars, datadrives ]
+#
+#- name: datadrives | Print large_datadrives
+#  when: datadrives is not defined
+#  debug:
+#    msg: "{{ large_datadrives }}"
+#  tags: [ never, debug, vars, datadrives ]
+
+- name: datadrives | Initialize datadrives fact
+  set_fact:
+    datadrives: []
+    #datadrives: "{{ large_datadrives | default([]) }}" # Can be multiple in the list
+  tags: [ vars, datadrives ]
+
+- name: datadrives | Populate datadrives fact
+  set_fact:
+    datadrives: "{{ datadrives + [{ 'id': item, 'path': '/dev/disk/by-id/' + item }] }}"
+  loop: "{{ arch_install_largest_drives_id_by_id }}"
+  tags: [ vars, datadrives ]

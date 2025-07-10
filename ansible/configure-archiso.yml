@@ -1,0 +1,131 @@
+- name: Configure ArchISO and prepare disks
+  hosts: all
+  connection: ssh
+  remote_user: root
+  become: yes
+  gather_facts: yes
+
+  vars:
+    - ansible_port: 22
+    - ansible_ssh_pass: password
+
+  pre_tasks:
+    - name: Set boot device facts for external boot-device
+      set_fact:
+        boot_device_facts:
+          - name: "{{ boot_devices.split('/')[-1] }}"
+            id: "{{ boot_devices.split('/')[-1] }}"
+            path: "{{ boot_devices }}"
+            root_device: false
+            boot_device: true
+            partitions:
+              - name: EFI System
+                purpose: boot
+                part_num: 1
+                part_start: 1MiB
+                size: 1GiB
+                fstype: vfat
+                flags: ["esp"]
+                id: "{{ boot_devices.split('/')[-1] }}-part1"
+                path: "{{ boot_devices }}-part1"
+      when: boot_devices != 'root'
+
+    - name: Set root device facts
+      set_fact:
+        root_device_facts: |
+          {% set devices = [] %}
+          {% for device in root_devices %}
+            {% set device_name = device.split('/')[-1] %}
+            {% set partitions = [] %}
+            {% if loop.first and boot_devices == 'root' %}
+              {% set _ = partitions.append({
+                'name': 'EFI System',
+                'purpose': 'boot',
+                'part_num': 1,
+                'part_start': '1MiB',
+                'size': '1GiB',
+                'fstype': 'vfat',
+                'flags': ["esp"],
+                'id': device_name + '-part1',
+                'path': device + '-part1'
+              }) %}
+              {% set root_part_start = '1GiB' %}
+            {% else %}
+              {% set _ = partitions.append({
+                'name': 'Data Partition',
+                'purpose': 'data',
+                'part_num': 1,
+                'part_start': '1MiB',
+                'size': '1GiB',
+                'fstype': 'vfat',
+                'flags': [],
+                'id': device_name + '-part1',
+                'path': device + '-part1'
+              }) %}
+              {% set root_part_start = '1GiB' %}
+            {% endif %}
+            {% set _ = partitions.append({
+              'name': 'Linux LUKS',
+              'purpose': 'zfs',
+              'part_num': partitions|length + 1,
+              'part_start': root_part_start,
+              'size': '100%',
+              'fstype': 'None',
+              'flags': [],
+              'id': device_name + '-part' + (partitions|length + 1)|string,
+              'path': device + '-part' + (partitions|length + 1)|string
+            }) %}
+            {% set _ = devices.append({
+              'name': device_name,
+              'id': device_name,
+              'path': device,
+              'root_device': true,
+              'boot_device': boot_devices == 'root' and loop.first,
+              'partitions': partitions
+            }) %}
+          {% endfor %}
+          {{ devices }}
+
+    - name: Set devices fact
+      set_fact:
+        devices: "{{ (boot_device_facts | default([])) + (root_device_facts | default([]) | from_yaml) }}"
+
+    - name: Generate vdev_layout variable
+      set_fact:
+        vdev_layout: "{{ vdev_layout | default('') + ' ' + 'dm-name-' + fde.luks.prefix + item.1.id }}"
+      loop: "{{ query('subelements', devices, 'partitions') }}"
+      when:
+        - item.1.purpose == 'zfs'
+        - item.0.root_device
+
+    - name: Ensure /boot is not mounted
+      ansible.posix.mount:
+        path: "{{ alt_root }}/{{ zfs.zpool.name }}/boot"
+        state: absent
+
+    - name: Close all ZFS and ZPOOL mounts
+      command: zpool export -a
+      ignore_errors: true
+      
+    - name: Close all open LUKS volumes
+      ansible.builtin.shell: |
+        for vol in $(ls /dev/mapper | grep 'luks_zfs_'); do
+          cryptsetup luksClose $vol # || true
+        done
+      args:
+        executable: /bin/bash
+
+
+  tasks:
+    - include_role:
+        name: "{{ item }}"
+      loop:
+        - role: archiso-configure-environment # non-destructive
+        - role: aur # non-destructive 
+        - role: archiso-zfs-install # non-destructive
+        - role: archiso-configure_disks-partition # DESTRUCTIVE!
+        - role: archiso-configure_disks-encrypt # DESTRUCTIVE!
+        - role: archiso-configure_disks-zfs # DESTRUCTIVE!
+        - role: archiso-configure_arch-chroot # non-destructive
+        - role: archiso-configure_pacstrap # DESTRUCTIVE!
+        - role: archiso-configure_arch-chroot-ssh # non-destructive

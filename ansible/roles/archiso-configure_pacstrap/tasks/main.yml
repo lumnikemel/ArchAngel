@@ -1,0 +1,39 @@
+- set_fact:
+    chrootdir: '{{ alt_root }}/{{ zfs.zpool.name }}'
+
+- name: Copy mirrorlist to new root
+  copy:
+    src: /etc/pacman.d/mirrorlist
+    dest: '{{ chrootdir }}/etc/pacman.d/mirrorlist'
+    remote_src: yes
+
+- name: Install base package
+  pacman:
+    name: base
+    state: present
+    update_cache: yes
+    root: "{{ chrootdir }}"
+
+- name: Install packages required to continue installation
+  pacman:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+    root: "{{ chrootdir }}"
+  loop:
+    - base-devel
+    - intel-ucode
+    - openssh
+    - dhcpcd
+    - ntp
+    - python 
+    - linux
+    - linux-headers
+    - zsh
+
+- name: Ensure DNS is configured in chroot
+  ansible.builtin.copy:
+    src: /etc/resolv.conf
+    dest: "{{ chrootdir }}/etc/resolv.conf"
+    force: yes
+    remote_src: yes

@@ -1,0 +1,38 @@
+# TODO: Lock down the aur_builder user fo that it is only invoked by root. There is no need for anyone else to use it or login.
+- name: Install reflector
+  pacman:
+    name: reflector
+    state: present
+
+- name: Populate pacman keys
+  command: reflector --latest 10 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+
+- name: Update repos
+  pacman:
+    update_cache: yes
+
+- name: Install necessary packages
+  pacman:
+    name: base-devel
+    state: present
+
+- name: Create user for building AUR packages
+  ansible.builtin.user:
+    name: aur_builder
+
+- name: Enable pacman to run passwordless for aur_builder - arch ALL= /usr/bin/pacman
+  community.general.sudoers:
+    name: 20-aur_builder
+    state: present
+    user: aur_builder
+    host: ALL
+    commands: /usr/bin/pacman
+    nopassword: true
+
+- name: Install AUR helper
+  become: yes
+  become_user: aur_builder
+  aur:
+    name: yay
+    use: makepkg
+    state: present

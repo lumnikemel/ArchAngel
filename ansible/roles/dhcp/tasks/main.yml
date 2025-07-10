@@ -1,0 +1,4 @@
+- name: Enable service
+  systemd:
+    name: dhcpcd
+    enabled: yes

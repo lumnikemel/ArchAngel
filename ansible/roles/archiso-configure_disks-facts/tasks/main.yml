@@ -1,0 +1,202 @@
+- name: Set rootdisks(s) by path
+  set_fact:
+    rootdisks: "{{ zfs_zroot_devices }}"
+  when: zfs_zroot_selector == 'path'
+
+- name: Select rootdisk(s) by largest size
+  block:
+    - name: Calculate size and store full paths for eligible drives
+      set_fact:
+        drives_with_sizes: "{{ drives_with_sizes | default([]) + [{'path': '/dev/disk/by-id/' + (item.value.links.ids | first), 'size': (item.value.sectors | int) * (item.value.sectorsize | int)}] }}"
+      loop: "{{ ansible_facts.devices | dict2items }}"
+      vars:
+        drives_with_sizes: []
+      when: 
+        - item.value.removable == '0'
+        - item.value.vendor is not none
+        - item.value.vendor != ''
+        - item.value.links.ids | length > 0
+
+    - name: Extract the size of the largest drive as a number
+      set_fact:
+        largest_drive_size: "{{ (drives_with_sizes | sort(attribute='size', reverse=true) | first).size }}"
+
+    - name: List all drives that match the largest drive size
+      set_fact:
+        drives_matching_largest_size: "{{ drives_with_sizes | selectattr('size', 'equalto', largest_drive_size | int) | map(attribute='path') | list }}"
+
+    - name: Set rootdisks(s)
+      set_fact:
+        rootdisks: "{{ drives_matching_largest_size }}"
+  when: zfs_zroot_selector == 'largest'
+
+- name: Select rootdisk(s) by smallest size
+  block:
+    - name: Calculate size and store full paths for eligible drives
+      set_fact:
+        drives_with_sizes: "{{ drives_with_sizes | default([]) + [{'path': '/dev/disk/by-id/' + (item.value.links.ids | first), 'size': (item.value.sectors | int) * (item.value.sectorsize | int)}] }}"
+      loop: "{{ ansible_facts.devices | dict2items }}"
+      vars:
+        drives_with_sizes: []
+      when: 
+        - item.value.removable == '0'
+        - item.value.vendor is not none
+        - item.value.vendor != ''
+        - item.value.links.ids | length > 0
+
+    - name: Extract the size of the smallest drive as a number
+      set_fact:
+        smallest_drive_size: "{{ (drives_with_sizes | sort(attribute='size') | first).size }}"
+
+    - name: List all drives that match the smallest drive size
+      set_fact:
+        drives_matching_smallest_size: "{{ drives_with_sizes | selectattr('size', 'equalto', smallest_drive_size | int) | map(attribute='path') | list }}"
+
+    - name: Set rootdisks(s)
+      set_fact:
+        rootdisks: "{{ drives_matching_smallest_size }}"
+  when: zfs_zroot_selector == 'smallest'
+
+# - name: Select rootdisk(s) by search-string
+#   block:
+#     - name: Calculate size and store full paths for eligible drives
+#       set_fact:
+#         drives_with_string: "{{ drives_with_sizes | default([]) + [{'path': '/dev/disk/by-id/' + (item.value.links.ids | first), 'size': (item.value.sectors | int) * (item.value.sectorsize | int)}] }}"
+#       loop: "{{ ansible_facts.devices | dict2items }}"
+#       vars:
+#         drives_with_sizes: []
+#       when: 
+#         - item.value.removable == '0'
+#         - item.value.vendor is not none
+#         - item.value.vendor != ''
+#         - item.value.links.ids | length > 0
+
+#     - name: Extract the size of the smallest drive as a number
+#       set_fact:
+#         smallest_drive_size: "{{ (drives_with_sizes | sort(attribute='size') | first).size }}"
+
+#     - name: List all drives that match the smallest drive size
+#       set_fact:
+#         drives_matching_smallest_size: "{{ drives_with_sizes | selectattr('size', 'equalto', smallest_drive_size | int) | map(attribute='path') | list }}"
+
+#     - name: Set rootdisks(s)
+#       set_fact:
+#         rootdisks: "{{ drives_matching_smallest_size }}"
+#   when: zfs_zroot_selector == 'search'
+
+- name: Set rootdisks(s) by path
+  set_fact:
+    zfs_zroot_devices: "{{ rootdisks }}"
+
+- name: Configure rootdisks(s) for single VDEV
+  set_fact:
+    rootdisks: ["{{ zfs_zroot_devices | first }}"]
+  when: zfs_zroot_layout == 'single'
+
+- name: Configure rootdisks(s) for RAID1 (mirror)
+  set_fact:
+    rootdisks: "{{ zfs_zroot_devices }}"
+  when: zfs_zroot_layout == 'raid1'
+
+- name: Configure rootdisks(s) for RAID0 (stripe)
+  set_fact:
+    rootdisks: "{{ zfs_zroot_devices }}"
+  when: zfs_zroot_layout == 'raid0'
+
+- name: Configure rootdisks(s) for RAID10 (striped-mirror)
+  set_fact:
+    rootdisks: "{{ zfs_zroot_devices }}"
+  when: zfs_zroot_layout == 'raid10'
+
+- name: Find start sector using parted module
+  parted:
+    device: "{{ rootdisks[0] }}"
+  register: parted_output
+
+- name: Set zfs_part_num
+  set_fact:
+    zfs_part_num: "-part{{ parted_output.partitions | length | int }}"
+
+- ansible.builtin.setup: { gather_subset: [ hardware ] } # Regather hardware facts after creating partition
+
+- name: Configure zpool_devices_str for single VDEV
+  set_fact:
+    rootdisks_base: "{{ rootdisks | map('split', '/') | map('last') | list }}"
+  when: zfs_zroot_layout == 'single'
+
+- name: Configure zpool_devices_str for single VDEV
+  set_fact:
+    zpool_devices_str: "{{ 'dm-name-luks_zfs_' + (rootdisks_base | first) + zfs_part_num }}"
+  when: zfs_zroot_layout == 'single'
+
+- name: Configure zpool_devices_str for RAID1 (mirror)
+  set_fact:
+    rootdisks_base: "{{ rootdisks | map('split', '/') | map('last') | list }}"
+  when: zfs_zroot_layout == 'raid1'
+
+- name: Configure zpool_devices_str for RAID1 (mirror)
+  set_fact:
+    zpool_devices_str: >-
+      {%- set result = [] -%}
+      {%- if rootdisks_base | length >= 2 -%}
+        {%- set _ = result.append('mirror ' + 'dm-name-luks_zfs_' + rootdisks_base[0] + zfs_part_num + ' ' + 'dm-name-luks_zfs_' + rootdisks_base[1] + zfs_part_num ) -%}
+        {%- if rootdisks_base | length > 2 -%}
+          {%- set _ = result.append('spare') -%}
+          {%- for device in rootdisks_base[2:] -%}
+            {%- set _ = result.append('dm-name-luks_zfs_' + device + zfs_part_num) -%}
+          {%- endfor -%}
+        {%- endif -%}
+      {%- else -%}
+        {%- set _ = result.append('dm-name-luks_zfs_' + rootdisks_base[0] + zfs_part_num) -%}
+      {%- endif -%}
+      {{ result | join(' ') }}
+  when: zfs_zroot_layout == 'raid1'
+
+- name: Configure zpool_devices_str for RAID0 (stripe)
+  set_fact:
+    rootdisks_base: "{{ rootdisks | map('split', '/') | map('last') | list }}"
+  when: zfs_zroot_layout == 'raid0'
+
+- name: Configure zpool_devices_str for RAID0 (stripe)
+  set_fact:
+    zpool_devices_str: >-
+      {%- set result = [] -%}
+      {%- for device in rootdisks_base -%}
+        {%- set _ = result.append('/dev/disk/by-id/dm-name-luks_zfs_' + device + zfs_part_num) -%}
+      {%- endfor -%}
+      {{ result | join(' ') }}
+  when: zfs_zroot_layout == 'raid0'
+
+- name: Configure zpool_devices_str for RAID10 (striped-mirror)
+  set_fact:
+    rootdisks_base: "{{ rootdisks | map('split', '/') | map('last') | list }}"
+  when: zfs_zroot_layout == 'raid10'
+
+- name: Configure zpool_devices_str for RAID10 (striped-mirror)
+  set_fact:
+    zpool_devices_str: >-
+      {%- set result = [] -%}
+      {%- for i in range(0, rootdisks_base | length, 4) -%}
+        {%- if i + 3 < rootdisks_base | length -%}
+          {%- set _ = result.append('mirror ' + 'dm-name-luks_zfs_' + rootdisks_base[i] + zfs_part_num + ' ' + 'dm-name-luks_zfs_' + rootdisks_base[i+1] + zfs_part_num + ' mirror ' + 'dm-name-luks_zfs_' + rootdisks_base[i+2] + zfs_part_num + ' ' + 'dm-name-luks_zfs_' + rootdisks_base[i+3] + zfs_part_num) -%}
+        {%- elif i + 1 < rootdisks_base | length -%}
+          {%- set _ = result.append('mirror ' + 'dm-name-luks_zfs_' + rootdisks_base[i] + zfs_part_num + ' ' + 'dm-name-luks_zfs_' + rootdisks_base[i+1] + zfs_part_num) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ result | join(' ') }}
+  when: zfs_zroot_layout == 'raid10'
+
+- name: Set bootdrive(s)
+  set_fact:
+    bootdrives: "{{ rootdisks }}"
+  when: boot_disk == 'auto'
+
+- name: Set bootdrive(s)
+  set_fact:
+    bootdrives: "{{ boot_disk | list }}"
+  when: boot_disk != 'auto'
+
+- ansible.builtin.setup: { gather_subset: [ hardware ] } # Regather hardware facts after creating partition
+
+
+

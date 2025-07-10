@@ -1,0 +1,10 @@
+packages_to_pacstrap:
+  - base
+  - base-devel
+  - intel-ucode
+  - openssh
+  - dhcpcd
+  - ntp
+  - python 
+  - linux
+  - linux-headers

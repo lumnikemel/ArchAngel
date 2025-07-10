@@ -1,0 +1,21 @@
+- name: Register host environment
+  command: systemd-detect-virt --container
+  ignore_errors: true
+  register: systemd_detect_virt_container
+  listen: Restart sshd
+
+- name: Register host environment
+  command: systemd-detect-virt --chroot
+  changed_when: false
+  ignore_errors: true
+  register: systemd_detect_virt_chroot
+  listen: Restart sshd
+
+- name: Restart sshd service
+  when: ansible_port != 22 and not (systemd_detect_virt_container.rc or systemd_detect_virt_chroot.rc)
+  systemd:
+    name: sshd
+    state: restarted
+    daemon_reload: yes
+    enabled: yes
+  listen: Restart sshd

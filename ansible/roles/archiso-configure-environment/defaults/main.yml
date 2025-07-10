@@ -1,0 +1,9 @@
+archiso_install_prep_cowspace_path: /run/archiso/cowspace
+archiso_install_prep_cowspace_size: 3G
+archiso_install_prep_ping_ip_address: "9.9.9.9"
+archiso_install_prep_ping_url: google.com
+archiso_install_prep_zfs_install_script_url: https://raw.githubusercontent.com/eoli3n/archiso-zfs/master/init
+archiso_install_prep_zfs_kernel_modules: zfs
+archiso_install_prep_pacman_keyring: archlinux-keyring
+archiso_install_prep_pacman_packages_ignore: linux,linux-firmware,linux-firmware-marvell,linux-firmware-whence,intel-ucode,amd-ucode
+archiso_install_prep_kernel_modules_dmcrypt: [ dm-crypt , dm-mod ]

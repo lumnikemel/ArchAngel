@@ -1,0 +1,100 @@
+- name: Destroy partitions from disk(s)
+  command: wipefs -a {{ item.path }}
+  loop: "{{ devices }}"
+
+- name: Create new boot and root partitions
+  community.general.parted:
+    label: gpt
+    device: "{{ item.0.path }}"
+    name: "{{ item.1.name }}"
+    number: "{{ item.1.part_num }}"
+    part_start: "{{ item.1.part_start }}"
+    part_end: "{{ item.1.size }}"
+    flags: "{{ item.1.flags }}"
+    state: present
+  loop: "{{ query('subelements', devices, 'partitions')  }}"
+
+# - name: Create new EFI boot partition(s)
+#   community.general.parted:
+#     label: gpt
+#     device: "{{ item.path }}"
+#     name: "{{ item.name }}"
+#     number: "{{ item.part_num }}"
+#     part_start: "{{ item.part_start }}"
+#     part_end: "{{ item.size }}"
+#     flags: "{{ item.flags }}"
+#     state: present
+#   loop: "{{ devices | subelements('partitions') }}"
+#   when: item.boot_device
+
+# - ansible.builtin.setup: { gather_subset: [ hardware ] } # Regather hardware facts after creating partition
+
+# - set_fact: { disk_partition_details: [] } # Clear variable
+# - name: Gather detailed partition info
+#   vars:
+#     current_disk_id: "{{ disk_id.split('/')[-1] }}"
+#     matched_device: "{{ ansible_facts.devices | dict2items | selectattr('value.links.ids', 'contains', current_disk_id) | map(attribute='value') | first }}"
+#     partitions_info: "{{ matched_device.partitions | dict2items | sort(attribute='value.start') | map(attribute='value') | map('json_query', '{partition_id: links.ids[0], partition_uuid: uuid}') | list }}"
+#   set_fact:
+#     disk_partition_details: "{{ disk_partition_details | default([]) + [{'disk_id': disk_id, 'partitions': partitions_info}] }}"
+#   loop: "{{ bootdrives }}"
+#   loop_control:
+#     loop_var: disk_id
+
+- name: Create a FAT32 filesystem on EFI boot partition
+  community.general.filesystem:
+    fstype: vfat
+    dev: "{{ item.1.path }}"
+    force: true
+  loop: "{{ devices | subelements('partitions') }}"
+  when: item.0.boot_device
+
+# - ansible.builtin.setup: { gather_subset: [ hardware ] } # Regather hardware facts after creating partition
+
+
+# - name: Create a new FAT32 data-partition on boot media.
+#   community.general.parted:
+#     device: "{{ item }}"
+#     label: gpt
+#     name: "Data"
+#     number: 2
+#     state: present
+#     part_start: 512MiB
+#     part_end: 1GiB
+#   loop: "{{ bootdrives }}"
+
+# - ansible.builtin.setup: { gather_subset: [ hardware ] } # Regather hardware facts after creating partition
+
+# - set_fact: { disk_partition_details: [] } # Clear variable
+# - name: Gather detailed partition info
+#   vars:
+#     current_disk_id: "{{ disk_id.split('/')[-1] }}"
+#     matched_device: "{{ ansible_facts.devices | dict2items | selectattr('value.links.ids', 'contains', current_disk_id) | map(attribute='value') | first }}"
+#     partitions_info: "{{ matched_device.partitions | dict2items | sort(attribute='value.start') | map(attribute='value') | map('json_query', '{partition_id: links.ids[0], partition_uuid: uuid}') | list }}"
+#   set_fact:
+#     disk_partition_details: "{{ disk_partition_details | default([]) + [{'disk_id': disk_id, 'partitions': partitions_info}] }}"
+#   loop: "{{ bootdrives }}"
+#   loop_control:
+#     loop_var: disk_id
+
+# - name: Create a FAT32 filesystem Data partition
+#   community.general.filesystem:
+#     fstype: vfat
+#     dev: "/dev/disk/by-id/{{ item.partitions[1].partition_id }}"
+#     force: true
+#   loop: "{{ disk_partition_details }}"
+
+# - name: Create partition for LUKS
+#   community.general.parted:
+#     device: "{{ item.path }}"
+#     label: gpt
+#     name: "{{ item.name }}"
+#     number: "{{ item.part_num }}"
+#     state: present
+#     part_start: "{{ item.part_start }}"
+#     part_end: "{{ item.size }}"
+#   loop: "{{ devices | subelements('partitions') }}"
+#   when: item.root_device
+
+# - ansible.builtin.setup: { gather_subset: [ hardware ] } # Regather hardware facts after creating partition
+

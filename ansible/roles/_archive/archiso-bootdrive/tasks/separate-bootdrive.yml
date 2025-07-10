@@ -1,0 +1,175 @@
+- debug:
+    msg: drives = {{ ansible_devices | select('match','nvme') | list }}
+
+
+- name: bootdrive | Get ID(s) of boot drive
+  set_fact:
+    drives: "{{ ansible_devices | select('match',bootdrive_search_string) | list }}"
+  tags: [ vars, bootdrive ]
+
+- debug:
+    msg: links = {{ ansible_devices[item].links.ids[0] }}
+  loop: "{{ drives }}"
+
+#- name: bootdrive | Get the smallest disk and register output
+#  when: bootdrive is not defined
+#  shell: echo $(lsblk -bo size,name,type,id-link | grep disk | sort -bg | head -n 1 | xargs | awk '{$1=$1;print}' | cut -d " " -f 4)
+#  register: arch_install_boot_drive_lsblk
+#  tags: [ vars, bootdrive ]
+#- ansible.builtin.set_fact:
+#    arch_install_boot_drive_id_by_id: "{{ arch_install_boot_drive_lsblk.stdout }}"
+#  when: bootdrive is not defined
+#  tags: [ vars, bootdrive ]
+
+#
+#- name: bootdrive | Set size of bootdisk
+#  when: bootdrive is not defined
+#  command: lsblk -dbno size /dev/disk/by-id/{{ arch_install_boot_drive_id_by_id }}
+#  register: arch_install_boot_drive_size_bytes_out
+#  tags: [ vars, bootdrive ]
+#- ansible.builtin.set_fact:
+#    arch_install_boot_drive_size_bytes: "{{ arch_install_boot_drive_size_bytes_out.stdout }}"
+#  when: bootdrive is not defined
+#  tags: [ vars, bootdrive ]
+#- debug:
+#    msg: "{{ arch_install_boot_drive_size_bytes }}"
+#  tags: [ never, debug, vars, bootdrive ]
+#
+#- name: bootdrive | Register UUID of bootdrive data-partition
+#  when: bootdrive is not defined
+#  shell: blkid -o export /dev/disk/by-id/{{ arch_install_boot_drive_id_by_id }}-part1 | grep -E '^UUID' | awk '{$1=$1;print}' | cut -d'=' -f2
+#  register: arch_install_bootdrive_boot_part_uuid_out
+#  tags: [ vars, bootdrive ]
+#
+#- name: bootdrive | Register UUID of bootdrive data-partition
+#  when: bootdrive is not defined
+#  shell: blkid -o export /dev/disk/by-id/{{ arch_install_boot_drive_id_by_id }}-part2 | grep -E '^UUID' | awk '{$1=$1;print}' | cut -d'=' -f2
+#  register: arch_install_bootdrive_data_part_uuid_out
+#  tags: [ vars, bootdrive ]
+#
+#
+- name: bootdrive | Set bootdrive fact
+  when: bootdrive is not defined
+  set_fact:
+    bootdrive:
+      id: "{{ ansible_devices[0].links.ids[0]  }}" # ID located in /dev/disk/by-id
+      path: /dev/disk/by-id/{{ ansible_devices[0].links.ids[0] }} # Full path and id, /dev/disk/by-id/abc-xyz-123
+      size: "{{ ansible_devices[0].sectors *  ansible_devices[0].sectorsize | int }}" # Size of drive in bytes; found throuhgh blkid
+      boot_part:
+        name: EFI System
+        size: 512MiB
+        fstype: vfat
+        id: "{{ ansible_devices[0].links.ids[0] }}-part1"
+        path: "/dev/disk/by-id/{{ ansible_devices[0].links.ids[0] }}-part1"
+        uuid: "{{ arch_install_bootdrive_boot_part_uuid_out.stdout }}" # UUID located in /dev/disk/by-uuid
+      data_part:
+        name: Data
+        size: 1024MiB
+        fstype: vfat
+        id: "{{ ansible_devices[0].links.ids[0] }}-part2"
+        path: "/dev/disk/by-id/{{ ansible_devices[0].links.ids[0] }}-part2"
+        uuid: "{{ arch_install_bootdrive_data_part_uuid_out.stdout }}" # UUID located in /dev/disk/by-uuid
+  tags: [ vars, bootdrive ]
+#
+#
+###### Boot disk
+#- name: bootdrive | Zero-out the boot-disk
+#  when: wipe_bootdrive == true and bootdrive is defined
+#  command: dd if=/dev/zero of={{ bootdrive.path }} bs=1M count={{ (((arch_install_boot_drive_size_bytes | int)) / (1024*1024)) | int | abs }}
+#  tags: [ testing, zero ]
+#
+- name: bootdrive | Remove all partitions from disk
+  when: wipe_bootdrive == true
+  command: wipefs -a {{ bootdrive.path }}
+  tags: [ bootdrive ]
+#
+- name: bootdrive | Create a new EFI boot partition with a size of {{ bootdrive.boot_part.size }}
+  when: wipe_bootdrive == true
+  community.general.parted:
+    label: gpt
+    device: "{{ bootdrive.path }}"
+    name: "{{ bootdrive.boot_part.name }}"
+    number: 1
+    part_start: 1MiB
+    part_end: "{{ bootdrive.boot_part.size }}"
+    flags: [ esp ]
+    state: present
+  tags: [ bootdrive ]
+#
+- name: bootdrive | Create a FAT32 filesystem on {{ bootdrive.boot_part.path }}
+  when: wipe_bootdrive == true
+  community.general.filesystem:
+    fstype: "{{ bootdrive.boot_part.fstype }}"
+    dev: "{{ bootdrive.boot_part.path }}"
+  tags: [ bootdrive ]
+#
+- name: bootdrive | Create a new FAT32 data-partition on boot media.
+  when: wipe_bootdrive == true
+  community.general.parted:
+    device: "{{ bootdrive.path }}"
+    label: gpt
+    name: "{{ bootdrive.data_part.name }}"
+    number: 2
+    state: present
+    part_start: 1025MiB
+    part_end: "{{ bootdrive.data_part.size }}"
+  tags: [ bootdrive ]
+
+- name: bootdrive | Create a FAT32 filesystem on {{ bootdrive.data_part.path }}
+  when: wipe_bootdrive == true
+  community.general.filesystem:
+    fstype: "{{ bootdrive.data_part.fstype }}"
+    dev: "{{ bootdrive.data_part.path }}"
+  tags: [ bootdrive ]
+#
+- name: bootdrive | Mount bootdrive
+  ansible.posix.mount:
+    path: "{{ altroot }}/boot"
+    src: "{{ bootdrive.boot_part.path }}"
+    fstype: "{{ bootdrive.boot_part.fstype }}"
+    state: mounted
+  tags: [ bootdrive ]
+#
+# systemd container cannot affect the EFI boot manager, so this needs to be run from ArchISO
+- name: Install Arch Boot Manager to EFI Boot Manager
+  block:
+  - name: Register all EFI vars containing Arch Boot Manager, so that they can be removed
+    shell: efibootmgr | grep -i '^Boot....\*' | grep Arch Boot Manager | sed -e 's/^Boot\(.*\)\*.*$/\1/'
+    register: reg_cmd_efibootmgr
+  - name: Delete all EFI vars containing Arch Boot Manager, so that only a single entry will exist on system 
+    command: efibootmgr --delete-bootnum --bootnum {{ item }}
+    loop: "{{ reg_cmd_efibootmgr.stdout_lines }}"  
+  - name: Install Arch Boot Manager to EFI vars
+    command: bootctl --efi-boot-option-description='Arch Boot Manager' --path={{ altroot }}/boot install
+#  - name: bootdrive | Install bootloader
+  tags: [ bootdrive ]
+
+
+- name: bootdrive | Dismount bootdrive
+  ansible.posix.mount:
+    path: "{{ altroot }}/boot"
+    state: absent
+  tags: [ bootdrive ]
+
+- name: bootdrive | Set bootdrive fact
+  when: bootdrive is not defined
+  set_fact:
+    bootdrive:
+      id: "{{ ansible_devices[0].links.ids[0]  }}" # ID located in /dev/disk/by-id
+      path: /dev/disk/by-id/{{ ansible_devices[0].links.ids[0] }} # Full path and id, /dev/disk/by-id/abc-xyz-123
+      size: "{{ ansible_devices[0].sectors *  ansible_devices[0].sectorsize | int }}" # Size of drive in bytes; found throuhgh blkid
+      boot_part:
+        name: EFI System
+        size: 512MiB
+        fstype: vfat
+        id: "{{ ansible_devices[0].links.ids[0] }}-part1"
+        path: "/dev/disk/by-id/{{ ansible_devices[0].links.ids[0] }}-part1"
+        uuid: "{{ ansible_devices[0].partitions[0].uuid }}" # UUID located in /dev/disk/by-uuid
+      data_part:
+        name: Data
+        size: 1024MiB
+        fstype: vfat
+        id: "{{ ansible_devices[0].links.ids[0] }}-part2"
+        path: "/dev/disk/by-id/{{ ansible_devices[0].links.ids[0] }}-part2"
+        uuid: "{{ ansible_devices[0].partitions[1].uuid }}" # UUID located in /dev/disk/by-uuid
+  tags: [ vars, bootdrive ]

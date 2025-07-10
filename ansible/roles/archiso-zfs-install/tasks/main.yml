@@ -1,0 +1,195 @@
+- name: Gather the package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Increase cowspace to half of RAM
+  mount:
+    path: /run/archiso/cowspace
+    opts: remount,size=50%
+    state: remounted
+
+- name: Add ArchZFS repo
+  blockinfile:
+    path: /etc/pacman.conf
+    block: |
+      [archzfs]
+      Server = http://archzfs.com/archzfs/x86_64
+      Server = http://mirror.sum7.eu/archlinux/archzfs/archzfs/x86_64
+      Server = https://mirror.biocrafting.net/archlinux/archzfs/archzfs/x86_64
+
+- name: Populate archlinux
+  command: pacman-key --populate archlinux
+
+- name: Receive ArchZFS repo keys
+  command: pacman-key --recv-keys F75D9D76
+
+- name: Sign ArchZFS repo keys
+  command: pacman-key --lsign-key F75D9D76
+
+- name: Update archlinux-keyring
+  pacman:
+    name: archlinux-keyring
+    state: present
+    update_cache: yes
+
+
+# - name: Install ZFS via precompiled binaries if available
+#   block:
+#     - name: Get running kernel version
+#       command: uname -r
+#       register: kernel_version
+
+#     - name: Search for zfs-linux package matching running kernel version
+#       uri:
+#         url: "{{ item }}"
+#         return_content: yes
+#       register: zfs_linux_search
+#       loop:
+#         - http://archzfs.com/archzfs/x86_64/
+#         - http://archzfs.com/archive_archzfs/
+#       failed_when: false
+
+#     - debug:
+#         var: "{{ item }}"
+#       loop: "{{ zfs_linux_search.results }}"
+
+#     - name: Set zfs_linux_url fact
+#       set_fact:
+#         zfs_linux_url: "{{ item.url }}"
+#       loop: "{{ zfs_linux_search.results }}"
+#       when: item.content is search('href="(?P<package>zfs-linux-' + kernel_version.stdout | replace('-', '\\.') + '.*x86_64.*)"')
+
+#     - debug:
+#         var: "{{ zfs_linux_url }}"
+
+#     - name: Download zfs-linux package
+#       get_url:
+#         url: "{{ item.url }}"
+#         dest: "/tmp/{{ item.url.split('/')[-1] }}"
+#       register: zfs_linux_download
+#       loop: "{{ zfs_linux_search.results }}"
+#       when: item.content is search('href="(?P<package>zfs-linux-' + kernel_version.stdout | replace('-', '\\.') + '.*x86_64.*)"')
+
+#     - debug:
+#         var: "{{ zfs_linux_download.results }}"
+
+#     - name: Extract zfs-utils version from zfs-linux PKGINFO
+#       command: bsdtar -qxO -f "/tmp/{{ item.dest.split('/')[-1] }}" .PKGINFO
+#       register: zfs_linux_pkginfo
+#       loop: "{{ zfs_linux_download.results }}"
+#       when: item.dest is defined
+
+#     - debug:
+#         var: "{{ zfs_linux_pkginfo.results }}"
+
+#     - name: Set zfs_utils_version fact
+#       set_fact:
+#         zfs_utils_version: "{{ item.stdout | regex_search('depend = zfs-utils=(.*)') }}"
+#       loop: "{{ zfs_linux_pkginfo.results }}"
+#       when: item.stdout is defined
+
+#     - debug:
+#         var: "{{ zfs_linux_pkginfo.results }}"
+
+#     - name: Search for zfs-utils package matching zfs-linux package dependency
+#       uri:
+#         url: "{{ item }}"
+#         return_content: yes
+#       register: zfs_utils_search
+#       loop:
+#         - http://archzfs.com/archzfs/x86_64/
+#         - http://archzfs.com/archive_archzfs/
+#       failed_when: false
+#       when: zfs_utils_version is defined
+
+#     - debug:
+#         var: "{{ zfs_utils_search }}"
+
+#     - name: Set zfs_utils_url fact
+#       set_fact:
+#         zfs_utils_url: "{{ item.url }}"
+#       loop: "{{ zfs_utils_search.results }}"
+#       when: item.content is search('href="(?P<package>zfs-utils-' + zfs_utils_version + '.*x86_64.*)"')
+
+#     - debug:
+#         var: "{{ zfs_utils_search.results }}"
+#     - debug:
+#         var: "{{ zfs_utils_url }}"
+
+#     - name: Install zfs-utils and zfs-linux packages
+#       pacman:
+#         name:
+#           - "{{ zfs_utils_url }}"
+#           - "/tmp/{{ zfs_linux_download.dest.split('/')[-1] }}"
+#         state: present
+#       when: zfs_utils_url is defined and zfs_linux_download.dest is defined
+
+#     - name: Load ZFS kernel module
+#       modprobe:
+#         name: zfs
+#         state: present
+#         persistent: present
+#       become: yes
+#       when: zfs_utils_url is defined and zfs_linux_download.dest is defined
+#   when: "'zfs-dkms' not in ansible_facts.packages and 'zfs-linux' not in ansible_facts.packages"
+
+- name: Install ZFS via DKMS if zfs-linux package is not found
+  block:
+    - name: Read ArchISO version
+      ansible.builtin.slurp:
+        src: /version
+      register: archiso_version
+
+    - name: Remove /etc/pacman.d/mirrorlist
+      ansible.builtin.file:
+        path: '/etc/pacman.d/mirrorlist'
+        state: absent
+
+    - name: Set ArchLinux Archive repository
+      lineinfile:
+        path: /etc/pacman.d/mirrorlist
+        #regexp: '^Server.*'
+        line: 'Server = {{ repo }}/$repo/os/$arch'
+        #backrefs: yes
+        state: present
+        create: yes
+      vars:
+        repo: "https://archive.archlinux.org/repos/{{ archiso_version['content']  | b64decode | replace('.','/') | trim }}"
+
+    - name: Upgrade cache to match the archive snapshot
+      pacman:
+        update_cache: yes
+        force: true
+        #upgrade: yes
+
+    - name: Install necessary packages for ZFS via DKMS
+      pacman:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - base-devel
+        - linux-headers
+        - git
+
+    - name: Install ZFS via DKMS
+      pacman:
+        name: zfs-dkms
+        state: present
+      async: 1000
+      poll: 0
+      register: pacman_sleeper
+
+    - name: 'Pacman - check on async task'
+      async_status:
+        jid: "{{ pacman_sleeper.ansible_job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 100
+
+    - name: Load ZFS kernel module
+      modprobe:
+        name: zfs
+        state: present
+        persistent: present
+      become: yes
+  when: "'zfs-dkms' not in ansible_facts.packages and 'zfs-linux' not in ansible_facts.packages"

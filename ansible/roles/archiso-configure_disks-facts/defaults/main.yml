@@ -1,0 +1,93 @@
+fde:
+  luks:
+    prefix: 'luks_zfs_'
+    cipher: aes-xts-plain64
+    size: '512'
+    hash: sha512
+    iteration_time: '3000'
+  headers:
+    path: /boot # Location to store dmcrypt headers
+    prefix: 'cryptheader-'
+    suffix: '.img'
+  bootdrive:
+    id: # ID located in /dev/disk/by-id
+    path: # Full path and id, /dev/disk/by-id/abc-xyz-123
+    size: # Size of drive in bytes; found throuhgh blkid
+    boot_part:
+      name: EFI System
+      size: 1024MiB
+      fstype: vfat
+      id:
+      path:
+      uuid: # UUID located in /dev/disk/by-uuid
+    data_part:
+      name: Data
+      size: "100%"
+      fstype: vfat
+      id:
+      path:
+      uuid: # UUID located in /dev/disk/by-uuid
+  datadrives: # Can be multiple in the list
+    - id: # ID located in /dev/disk/by-id
+      path: # Full path and id, /dev/disk/by-id/abc-xyz-123
+  passphrase: 'password'
+
+zfs:
+  zpool:
+    name: zroot
+    type: stripe # stripe || mirror
+    datadrives: []# Can be multiple in the list
+      #- id: # ID located in /dev/disk/by-id
+      #  path: # Full path and id, /dev/disk/by-id/abc-xyz-123
+    options:
+      ashift: '13'
+      compression: lz4
+      xattr: sa
+      atime: 'off'
+      acltype: posix
+      dedup: 'off'
+      checksum: 'on'
+      recordsize: 128k
+  filesystems:
+    - { name: /sys/system                          , options: -o mountpoint=none -p }
+    - { name: /sys/system/ROOT                     , options: -o mountpoint=none }
+    - { name: /sys/system/ROOT/default             , options: -o mountpoint=/ }
+    - { name: /sys/system/home                     , options: -o mountpoint=legacy }
+    - { name: /sys/system/var                      , options: -o canmount=off -o mountpoint=/var -o xattr=sa }
+    - { name: /sys/system/var/lib                  , options: -o canmount=off -o mountpoint=/var/lib }
+    - { name: /sys/system/var/lib/systemd          , options: -o canmount=off -o mountpoint=/var/lib/systemd }
+    - { name: /sys/system/usr                      , options: -o canmount=off -o mountpoint=/usr }
+    - { name: /sys/system/var/lib/systemd/coredump , options: -o mountpoint=legacy }
+    - { name: /sys/system/var/log                  , options: -o mountpoint=legacy }
+    - { name: /sys/system/var/lib/lxc              , options: -o mountpoint=legacy }
+    - { name: /sys/system/var/lib/lxd              , options: -o mountpoint=legacy }
+    - { name: /sys/system/var/lib/machines         , options: -o mountpoint=legacy }
+    - { name: /sys/system/var/lib/libvirt          , options: -o mountpoint=legacy }
+    - { name: /sys/system/var/cache                , options: -o mountpoint=legacy }
+    - { name: /sys/system/usr/local                , options: -o mountpoint=legacy }
+    - { name: /sys/system/var/log/journal          , options: -o mountpoint=legacy -o acltype=posixacl }
+  swap:
+    enabled: false
+    name: swap
+    size: 512M
+    path: /dev/zvol/zroot/swap
+    options:
+      logbias: throughput
+      sync: always
+      cachetype: metadata
+      snapshots: false
+
+altroot: /mnt
+
+packages_to_pacstrap:
+  - base
+  - base-devel
+  - intel-ucode
+  - openssh
+  - dhcpcd
+  - ntp
+  - python 
+  - linux
+  - linux-headers
+
+packages_to_skip_upgrade: []

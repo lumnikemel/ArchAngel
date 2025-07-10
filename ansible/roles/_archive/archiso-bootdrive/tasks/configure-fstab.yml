@@ -1,0 +1,8 @@
+- name: fstab | Import mounts to new system's fstab
+  shell: genfstab -U -p {{ altroot }}/{{ zfs.zpool.name }} >> {{ altroot }}/{{ zfs.zpool.name }}/etc/fstab
+  tags: [ zfsonroot ]
+
+- name: fstab | Import swap-mount to new system's fstab
+  when: zfs.swap == true
+  shell: echo "{{ swap.path }} none swap discard 0 0" >> {{ altroot }}/{{ zfs.zpool.name }}/etc/fstab
+  tags: [ zfsonroot ]

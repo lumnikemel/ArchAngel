@@ -1,0 +1,191 @@
+# Usage: ansible-playbook -i 10.0.0.129, troubleshooting.yml
+
+---
+
+- name: Configure ArchISO and prepare disks
+  hosts: all
+  connection: local # ssh
+  #remote_user: root
+  #become: yes
+  #gather_facts: yes
+
+  vars:
+    - ansible_port: "{{ ssh_alt_port }}"
+    - ansible_ssh_pass: password
+  # roles:
+  #   - role: archiso-configure-environment
+  #   - role: aur
+  #   - role: archiso-zfs-install
+
+  tasks:
+    # - name: Print vars
+    #   debug:
+    #     msg:
+    #       - "{{ luks_options_string }}"
+    #       - "{{ bootloader.options }}"
+    #       - zpool set bootfs={{ zfs.zpool.name }}/{{ (zfs.filesystems |  selectattr('options', 'regex', 'mountpoint=\/$') | list | first).name }} {{ zfs.zpool.name }}
+
+
+  # - name: Initialize devices list
+  #   set_fact:
+  #     devices: []
+
+  # - name: Populate devices list from root_devices
+  #   set_fact:
+  #     devices: "{{ devices + [ { 'name': item.split('/')[-1], 'id': item.split('/')[-1], 'path': item, 'purpose': 'root', 'partitions': [] } ] }}"
+  #   loop: "{{ root_devices }}"
+
+  # - name: Add boot and data partitions to each device
+  #   set_fact:
+  #     devices: >-
+  #       {% for device in devices %}
+  #       {% set part_list = device.partitions %}
+  #       {% if boot_devices == 'root' %}
+  #       {% set part_list = part_list + [{ 'name': 'EFI System', 'purpose': 'boot', 'part_num': 1, 'size': '1GiB', 'fstype': 'vfat', 'id': device.id + '-part1', 'path': device.path + '-part1' }] %}
+  #       {% set part_list = part_list + [{ 'name': 'Linux LUKS', 'purpose': 'zfs', 'part_num': 2, 'size': '100%', 'fstype': 'None', 'id': device.id + '-part2', 'path': device.path + '-part2' }] %}
+  #       {% endif %}
+  #       {% do device.update({'partitions': part_list}) %}
+  #       {% endfor %}
+  #       {{ devices }}
+
+  # - name: Add separate boot device if required
+  #   when: boot_devices != 'root'
+  #   set_fact:
+  #     devices: "{{ devices + [ { 'name': boot_devices.split('/')[-1], 'id': boot_devices.split('/')[-1], 'path': boot_devices, 'purpose': 'boot', 'partitions': [ { 'name': 'EFI System', 'purpose': 'boot', 'part_num': 1, 'size': '1GiB', 'fstype': 'vfat', 'id': boot_devices.split('/')[-1] + '-part1', 'path': boot_devices + '-part1' } ] } ] }}"
+
+  # - name: Add boot and data partitions to each device
+  #   set_fact:
+  #     devices: "{{ devices | map('combine', {'partitions': (item.partitions + boot_partitions if boot_devices == 'root' else item.partitions) }) | list }}"
+  #   vars:
+  #     boot_partitions: 
+  #       - name: 'EFI System'
+  #         purpose: 'boot'
+  #         part_num: 1
+  #         size: '1GiB'
+  #         fstype: 'vfat'
+  #         id: "{{ item.id }}-part1"
+  #         path: "{{ item.path }}-part1"
+  #       - name: 'Linux LUKS'
+  #         purpose: 'zfs'
+  #         part_num: 2
+  #         size: '100%'
+  #         fstype: 'None'
+  #         id: "{{ item.id }}-part2"
+  #         path: "{{ item.path }}-part2"
+  #   loop: "{{ devices }}"
+
+    - name: Set boot device facts for external boot-device
+      set_fact:
+        boot_device_facts:
+          - name: "{{ boot_devices.split('/')[-1] }}"
+            id: "{{ boot_devices.split('/')[-1] }}"
+            path: "{{ boot_devices }}"
+            root_device: false
+            boot_device: true
+            partitions:
+              - name: EFI System
+                purpose: boot
+                part_num: 1
+                part_start: 1MiB
+                size: 1GiB
+                fstype: vfat
+                flags: ["esp"]
+                id: "{{ boot_devices.split('/')[-1] }}-part1"
+                path: "{{ boot_devices }}-part1"
+      when: boot_devices != 'root'
+
+    - name: Set root device facts
+      set_fact:
+        root_device_facts: |
+          {% set devices = [] %}
+          {% for device in root_devices %}
+            {% set device_name = device.split('/')[-1] %}
+            {% set partitions = [] %}
+            {% if loop.first and boot_devices == 'root' %}
+              {% set _ = partitions.append({
+                'name': 'EFI System',
+                'purpose': 'boot',
+                'part_num': 1,
+                'part_start': '1MiB',
+                'size': '1GiB',
+                'fstype': 'vfat',
+                'flags': ["esp"],
+                'id': device_name + '-part1',
+                'path': device + '-part1'
+              }) %}
+              {% set root_part_start = '1GiB' %}
+            {% else %}
+              {% set _ = partitions.append({
+                'name': 'Data Partition',
+                'purpose': 'data',
+                'part_num': 1,
+                'part_start': '1MiB',
+                'size': '1GiB',
+                'fstype': 'vfat',
+                'flags': [],
+                'id': device_name + '-part1',
+                'path': device + '-part1'
+              }) %}
+              {% set root_part_start = '1GiB' %}
+            {% endif %}
+            {% set _ = partitions.append({
+              'name': 'Linux LUKS',
+              'purpose': 'zfs',
+              'part_num': partitions|length + 1,
+              'part_start': root_part_start,
+              'size': '100%',
+              'fstype': 'None',
+              'flags': [],
+              'id': device_name + '-part' + (partitions|length + 1)|string,
+              'path': device + '-part' + (partitions|length + 1)|string
+            }) %}
+            {% set _ = devices.append({
+              'name': device_name,
+              'id': device_name,
+              'path': device,
+              'root_device': true,
+              'boot_device': boot_devices == 'root' and loop.first,
+              'partitions': partitions
+            }) %}
+          {% endfor %}
+          {{ devices }}
+
+    - name: Set devices fact
+      set_fact:
+        devices: "{{ (boot_device_facts | default([])) + (root_device_facts | default([]) | from_yaml) }}"
+
+  # - name: Print vars
+  #   debug:
+  #     msg: "{{ devices }}"
+
+
+  # - name: Create new boot and root partitions
+  #   debug:
+  #     var: |
+  #       label: gpt,
+  #       device: "{{ item.0.path }}"
+  #       name: "{{ item.1.name }}"
+  #       number: "{{ item.1.part_num }}"
+  #       part_start: "{{ item.1.part_start }}"
+  #       part_end: "{{ item.1.size }}"
+  #       flags: "{{ item.1.flags }}"
+  #       state: present
+  #   loop: "{{ query('subelements', devices, 'partitions') }}"
+
+    - name: Create new boot and root partitions
+      debug:
+        msg: "{{ item.0.path }} {{ item.1.part_num }}"
+      loop: "{{ query('subelements', devices, 'partitions') }}"
+
+    - name: Generate vdev_layout variable
+      set_fact:
+        vdev_layout: "{{ vdev_layout | default('') + ' ' + 'dm-name-' + fde.luks.prefix + item.1.id }}"
+      loop: "{{ query('subelements', devices, 'partitions') }}"
+      when:
+        - item.1.purpose == 'zfs'
+        - item.0.root_device
+    
+    - name: Print vars
+      debug:
+        msg: "{{ vdev_layout }}"
+##################

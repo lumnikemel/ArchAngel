@@ -1,0 +1,7 @@
+- name: Copy public-key to root
+  ansible.builtin.copy:
+    src:   ./files/CommonKey.pub
+    dest:  /root/.ssh/authorized_keys
+    owner: root
+    group: root
+    mode: '0600'

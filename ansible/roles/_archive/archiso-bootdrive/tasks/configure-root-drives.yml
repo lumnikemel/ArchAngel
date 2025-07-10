@@ -1,0 +1,83 @@
+- name: Mount bootdrive
+  ansible.posix.mount:
+    path: "{{ altroot }}/boot"
+    src: "{{ fde.bootdrive.boot_part.path }}"
+    fstype: "{{ fde.bootdrive.boot_part.fstype }}"
+    state: mounted
+  tags: [ bootdrive ]
+
+
+- debug:
+    msg: "{{ arch_install_largest_drives_id_by_id }}"
+  tags: [ never , debug , rootdrives ]
+- name: Encrypt datadrives # according to the cryptsetup FAQ, the headerfile will be created automatically if the file does not exist. Default size is 16M. I think this is all I will need.
+  shell: >
+    echo -e -n {{ fde.passphrase }} | cryptsetup luksFormat -q -v
+    --cipher {{ fde.luks.cipher }}
+    -s {{ fde.luks.size }}
+    -h {{ fde.luks.hash }}
+    --iter-time {{ fde.luks.iteration_time }}
+    --use-random
+    --header {{ altroot }}{{ fde.headers.path }}/{{ fde.headers.prefix }}{{ item.id }}{{ fde.headers.suffix }} {{ item.path }}
+#      --luks2-metadata-size # Needed if I want to increase the default size
+#      --luks2-keyslots-size # Needed if I want to increase the default size
+  loop: "{{ fde.datadrives }}"
+  tags: [ rootdrives ]
+
+- name: Register crypt devices
+  command: ls /dev/mapper
+  register: arch_install_testing_cmd_ls_dev_mapper
+  tags: [ rootdrives , rootdrives-close ]
+- debug:
+    msg: '{{ arch_install_testing_cmd_ls_dev_mapper.stdout }}'
+  tags: [ never , debug , rootdrives , rootdrives-close ]
+
+- name: Close encrypted drives
+  when: item.id in arch_install_testing_cmd_ls_dev_mapper.stdout
+  command: cryptsetup luksClose {{ fde.luks.prefix }}{{ item.id }}
+  #ignore_errors: True
+  loop: "{{ fde.datadrives }}"
+  tags: [ rootdrives , rootdrives-close ]
+
+- name: Unlock encrypted root-drives
+  shell: >
+    echo -e -n {{ fde.passphrase }} | cryptsetup luksOpen {{ item.path }}
+    --header {{ altroot }}{{ fde.headers.path }}/{{ fde.headers.prefix }}{{ item.id }}{{ fde.headers.suffix }}
+    {{ fde.luks.prefix }}{{ item.id }}
+  loop: "{{ fde.datadrives }}"
+  tags: [ rootdrives, troubleshooting-install ]
+
+- name: Dismount bootdrive
+  ansible.posix.mount:
+    path: "{{ altroot }}/boot"
+    state: absent
+  tags: [ bootdrive ]
+
+#- name: Register disk-id of open encrypted-drive to use in installation
+#  shell: ls /dev/disk/by-id | grep CRYPT
+#  register: arch_install_drive_root_zfs_disk
+#  tags: [ rootdrives, troubleshooting-install ]
+#- debug:
+#    msg: "{{ arch_install_drive_root_zfs_disk }}"
+#  tags: [ never , debug , rootdrives, troubleshooting-install ]
+
+#- name: Setting fact from registered disk-id
+#  ansible.builtin.set_fact:
+#    drive_root_zfs_ID: "{{ arch_install_drive_root_zfs_disk.stdout | split(' ') | list }}"
+#  tags: [ rootdrives, troubleshooting-install ]
+#- debug:
+#    msg: "{{ drive_root_zfs_ID }}"
+#  tags: [ never , debug , rootdrives, troubleshooting-install ]
+
+#- name: Set drive_root_zfs_path
+#  ansible.builtin.set_fact:
+#    drive_root_zfs_path: /dev/disk/by-id/{{ arch_install_drive_root_zfs_disk.stdout }}
+#  tags: [ rootdrives, troubleshooting-install ]
+#
+#- name: Display paths
+#  debug:
+#    msg: |
+#      drive_root_zfs_ID = {{ drive_root_zfs_ID }}
+#      drive_root_zfs_path = {{ drive_root_zfs_path }}
+#      zpool paths = {{ ["/dev/disk/by-id/"] | product(drive_root_zfs_ID) | map('join') | list | join(' ') }}
+#  tags: [ never , debug , rootdrives, troubleshooting-install ]

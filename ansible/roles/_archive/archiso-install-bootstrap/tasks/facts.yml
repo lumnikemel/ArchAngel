@@ -1,0 +1,79 @@
+# Create defaults for required variables when not set explicitely by the user.
+# These defaults are detailed in the readme.
+# By default, the bootdrive will be set to the smallest drive, and datadrives to the largest.
+
+- name: Use largest drives as datadrives
+  when: fde.datadrives is not defined
+  block:
+  - name: Get the largest disk size and register output # Will use this to match any other drives of its size.
+    shell: echo $(lsblk -bo size,name,type | grep disk | sort -rgb | tr -s ' ' | cut -d " " -f 1 | head -n 1)
+    register: arch_install_largest_drive_size
+    tags: [ always, vars ]
+  - debug:
+      msg: "{{ arch_install_largest_drive_size }}"
+    tags: [ never , debug ]
+
+  - name: Get the largest disks by size and register output # Will use this to match any other drives of its size.
+    shell: echo $(lsblk -bo size,name,type,id-link | grep disk | grep {{ arch_install_largest_drive_size.stdout }} | sort -rgb  | tr -s ' ' | cut -d " " -f 4)
+    register: arch_install_largest_drives
+    tags: [ always, vars ]
+  - debug:
+      msg: "{{ arch_install_largest_drives }}"
+    tags: [ never , debug ]
+  - command: lsblk
+    register: lsblk
+    tags: [ never , debug ]
+  - debug:
+      msg: '{{ lsblk.stdout }}'
+    tags: [ never , debug ]
+
+  - name: Set drive_root to largest disk when it is empty or not defined
+    ansible.builtin.set_fact:
+      arch_install_largest_drives_id_by_id: "{{ arch_install_largest_drives.stdout | split(' ') | list }}"
+    tags: [ always, vars ]
+  - debug:
+      msg: "{{ arch_install_largest_drives_id_by_id }}"
+    tags: [ never , debug ]
+
+  - name: Output content of drive_root to console
+    debug:
+      msg: 'root drives are: /dev/disk/by-id/{{ item }}'
+    loop: "{{ arch_install_largest_drives_id_by_id }}"
+    tags: [ never , debug ]
+
+  - name: Populate fde variable
+    set_fact:
+      large_datadrives: []
+
+  - name: Populate fde variable
+    set_fact:
+      large_datadrives: "{{ large_datadrives + [{'id': item, 'path': '/dev/disk/by-id/' + item}] }}"
+    loop: "{{ arch_install_largest_drives_id_by_id }}"
+  
+  - name: Update fde variable with large_datadrives
+    set_fact:
+      fde: "{{ fde | combine({'datadrives': large_datadrives}) }}"
+  
+  - name: Display fde variable
+    debug:
+      var: fde
+    tags: [ never , debug ]
+
+  - name: Register output of "ls /dev/disk/by-id"
+    command: ls /dev/disk/by-id
+    #ignore_errors: True
+    register: arch_install_testing_cmd_ls_dev_disk_by_id
+    tags: [ never , debug ]
+
+- name: Register disk-id of open encrypted-drive to use in installation
+  when: "'CRYPT' in arch_install_testing_cmd_ls_dev_disk_by_id.stdout"
+  shell: ls /dev/disk/by-id | grep CRYPT
+  register: arch_install_drive_root_zfs_disk
+  #ignore_errors: True
+  tags: [ always, vars ]
+
+- name: Setting fact from registered disk-id
+  when: "'CRYPT' in arch_install_testing_cmd_ls_dev_disk_by_id.stdout"
+  ansible.builtin.set_fact:
+    drive_root_zfs_ID: "{{ arch_install_drive_root_zfs_disk.stdout | split(' ') | list }}"
+  tags: [ always, vars ]

@@ -1,0 +1,47 @@
+##### Boot disk
+- name: Remove all partitions from disk
+  command: wipefs -a {{ fde.bootdrive.path }}
+  tags: [ bootdrive ]
+
+- name: Create a new EFI boot partition with a size of {{ fde.bootdrive.boot_part.size }}
+  community.general.parted:
+    label: gpt
+    device: "{{ fde.bootdrive.path }}"
+    name: "{{ fde.bootdrive.boot_part.name }}"
+    number: 1
+    part_start: 1MiB
+    part_end: "{{ fde.bootdrive.boot_part.size }}"
+    flags: [ esp ]
+    state: present
+  tags: [ bootdrive ]
+
+- name: Create a FAT32 filesystem on {{ fde.bootdrive.boot_part.path }}
+  community.general.filesystem:
+    fstype: "{{ fde.bootdrive.boot_part.fstype }}"
+    dev: "{{ fde.bootdrive.boot_part.path }}"
+  tags: [ bootdrive ]
+
+- name: Create a new FAT32 data-partition on boot media.
+  community.general.parted:
+    device: "{{ fde.bootdrive.path }}"
+    label: gpt
+    name: "{{ fde.bootdrive.data_part.name }}"
+    number: 2
+    state: present
+    part_start: 1025MiB
+    part_end: "{{ fde.bootdrive.data_part.size }}"
+  tags: [ bootdrive ]
+
+- name: Create a FAT32 filesystem on {{ fde.bootdrive.data_part.path }}
+  community.general.filesystem:
+    fstype: "{{ fde.bootdrive.data_part.fstype }}"
+    dev: "{{ fde.bootdrive.data_part.path }}"
+  tags: [ bootdrive ]
+
+#- name: Mount boot drive
+#  ansible.posix.mount:
+#    path: "{{ altroot }}/{{ zfs.zpool.name }}/boot"
+#    src: "{{ fde.bootdrive.boot_part.path }}"
+#    fstype: "{{ fde.bootdrive.boot_part.fstype }}"
+#    state: mounted
+#  tags: [ bootdrive ]

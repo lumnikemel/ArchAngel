@@ -1,0 +1,28 @@
+- name: Set keyboard mapping
+  command: localectl --no-convert set-keymap us
+    
+- name: Set regional time
+  command: ln -sf /usr/share/zoneinfo/{{ user_timezone }} /etc/localtime
+
+- name: Set locale
+  ansible.builtin.lineinfile:
+    path: /etc/locale.gen
+    search_string: '#en_US.UTF-8 UTF-8'
+    line: en_US.UTF-8 UTF-8
+    create: yes
+
+- name: Set language
+  ansible.builtin.lineinfile:
+    path: /etc/locale.conf
+    line: LANG=en_US.UTF-8
+    create: yes
+
+- name: Set keymap
+  ansible.builtin.lineinfile:
+    path: /etc/vconsole.conf
+    search_string: 'KEYMAP'
+    line: KEYMAP=us
+    create: yes
+
+- name: Generate locale
+  command: locale-gen

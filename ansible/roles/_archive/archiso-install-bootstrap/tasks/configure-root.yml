@@ -1,0 +1,20 @@
+- name: root user | Create .ssh directory for new root
+  ansible.builtin.file:
+    path: '{{ altroot }}/{{ zfs.zpool.name }}/root/.ssh'
+    state: directory
+    mode: '0700'
+
+- name: root user | Fix permissions on new root directory
+  ansible.builtin.file:
+    path: '{{ altroot }}/{{ zfs.zpool.name }}/root'
+    state: directory
+    mode: '0700'
+
+- name: root user | Copy archiso public-key to new root
+  ansible.builtin.copy:
+    src: /root/.ssh/authorized_keys
+    dest: '{{ altroot }}/{{ zfs.zpool.name }}/root/.ssh/authorized_keys'
+    remote_src: yes
+    owner: root
+    group: root
+    mode: '0600'

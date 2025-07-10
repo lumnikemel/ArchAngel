@@ -1,0 +1,112 @@
+- name: Unmount legacy mounts
+  ansible.posix.mount:
+    path: "{{ alt_root }}/{{ zfs.zpool.name }}/boot"
+    state: absent
+
+- name: Close all ZFS and ZPOOL mounts
+  command: zpool export -a
+
+- name: Ensure LUKS containers are open
+  community.crypto.luks_device:
+    device: "{{ item.1.path }}"
+    name: "{{ fde.luks.prefix + item.1.id }}"
+    passphrase: "{{ luks_passphrase }}"
+    state: opened
+  loop: "{{ devices | subelements('partitions') }}"
+  when: item.1.purpose == 'zfs'
+
+- name: Create Pool
+  command: >-
+    zpool create -f {{ zfs.zpool.name }}
+    -o ashift=13
+    -o altroot={{ alt_root }}
+    -o autotrim=on
+    -O compression=lz4
+    -O xattr=sa
+    -O atime=off
+    -O acltype=posix
+    -O dedup=off
+    -O checksum=on
+    -O recordsize=128k
+    -m none {{ vdev_layout }}
+
+# - name: Create ZFS datasets
+#   command: zfs create {{ item.options }} {{ zfs.zpool.name }}/{{ item.name }}
+#   loop: '{{ zfs.filesystems }}'
+  
+- name: Create a new file system called myfs in pool rpool with the setuid property turned off
+  community.general.zfs:
+    name: "{{ zfs.zpool.name }}/{{ item.name }}"
+    state: present
+    extra_zfs_properties:
+      "{{ item.options }}"
+  loop: '{{ zfs.filesystems }}'
+
+# - name: Set ZFS boot-filesystem
+#   command: zpool set bootfs={{ zfs.zpool.name }}/{{ (zfs.filesystems |  selectattr('options', 'regex', 'mountpoint=\/$') | list | first).name }} {{ zfs.zpool.name }}
+- name: Set ZFS boot-filesystem
+  command: zpool set bootfs={{ zfs.zpool.name }}/{{ (zfs.filesystems | json_query("[?options.mountpoint == '/'].name") | first) }} {{ zfs.zpool.name }}
+
+
+# - name: Create swap on ZFS
+#   when: zfs.swap == true and bootstrap == true
+#   command: >-
+#     zfs create -V {{ zfs.swap.size }}
+#     -b $(getconf PAGESIZE) 
+#     -o logbias={{ zfs.swap.logbias }} 
+#     -o sync={{ zfs.swap.sync }} 
+#     -o primarycache={{ zfs.swap.cachetype }} 
+#     -o com.sun:auto-snapshot={{ zfs.swap.snapshots }} 
+#     {{ zfs.zpool.name }}/{{ zfs.swap.name }}
+  
+
+# - name: Create swap on ZFS
+#   when: zfs.swap == true and bootstrap == true
+#   command: mkswap -f {{ zfs.swap.path }}
+  
+
+- name: Unmount ZFS filesystems
+  command: zfs umount -a
+  
+
+- name: Export zpool to that it can be imported to installed system
+  command: zpool export -a
+  ignore_errors: true
+  
+
+- name: Import zpool To {{ alt_root }}/{{ zfs.zpool.name }}
+  command: zpool import -R {{ alt_root }}/{{ zfs.zpool.name }} {{ zfs.zpool.name }}
+
+- name: Set permissions on /root
+  ansible.builtin.file:
+    path: "{{ alt_root }}/{{ zfs.zpool.name }}/root"
+    state: directory
+    mode: '0700'
+
+- name: Create zpool cache and copy to mounted ZROOT
+  shell: '{{ item }}'
+  loop:
+    - mkdir -p /etc/zfs
+    - mkdir -p {{ alt_root }}/{{ zfs.zpool.name }}/etc/zfs
+    - zpool set cachefile=/etc/zfs/zpool.cache zroot
+    - cp /etc/zfs/zpool.cache {{ alt_root }}/{{ zfs.zpool.name }}/etc/zfs/zpool.cache
+
+- name: Mount bootdrive to ZROOT
+  ansible.posix.mount:
+    path: "{{ alt_root }}/{{ zfs.zpool.name }}/boot"
+    src: "{{ item[0].partitions[0].path }}"
+    fstype: "vfat"
+    state: mounted
+  loop: "{{ devices | subelements('partitions') }}"
+  when: item.1.purpose == 'boot'
+
+- name: Mount legacy ZFS filesystems to ZROOT
+  ansible.posix.mount:
+    path:   "{{ alt_root }}/{{ zfs.zpool.name }}/{{ item.name }}"
+    src:    "{{ zfs.zpool.name }}/{{ item.name }}"
+    fstype: zfs
+    state:  present
+  #loop: "{{ (zfs.filesystems |  selectattr('options', 'search', 'mountpoint=legacy') | list) }}"
+  loop: "{{ zfs.filesystems | json_query(query) }}"
+  vars:
+    query: "[?options.mountpoint != 'none' && options.mountpoint != null]"
