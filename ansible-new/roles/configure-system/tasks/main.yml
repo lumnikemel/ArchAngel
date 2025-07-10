@@ -30,16 +30,32 @@
 - name: Create user
   user:
     name: "{{ username }}"
-    password: "{{ user_password | password_hash('sha512') }}"
     groups: wheel
     shell: /bin/bash
     create_home: yes
+    state: present
+
+- name: Set user password
+  shell: echo "{{ username }}:{{ user_password }}" | chpasswd
+
+- name: Set root password  
+  shell: echo "root:{{ user_password }}" | chpasswd
 
 - name: Configure sudo
   lineinfile:
     path: /etc/sudoers
     line: "%wheel ALL=(ALL) ALL"
     validate: visudo -cf %s
+
+- name: Enable NetworkManager
+  systemd:
+    name: NetworkManager
+    enabled: yes
+
+- name: Enable SSH daemon
+  systemd:
+    name: sshd
+    enabled: yes
 
 - name: Install and configure bootloader
   include_tasks: bootloader.yml
