@@ -6,10 +6,13 @@ all:
           ansible_connection: local
     chroot:
       hosts:
-        chroot_target:
+        /mnt:
           ansible_connection: chroot
-          ansible_chroot: /mnt
-        
+          # ansible_chroot: /mnt
+      # hosts:
+      #   chroot_target:
+      #     ansible_connection: chroot
+      #     ansible_chroot: /mnt        
 
 
   vars:

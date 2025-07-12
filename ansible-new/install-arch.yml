@@ -1,31 +1,31 @@
 ---
-- name: Prepare host and install base system
-  hosts: archiso
-  become: yes
-  gather_facts: yes
+# - name: Prepare host and install base system
+#   hosts: archiso
+#   become: yes
+#   gather_facts: yes
   
-  vars:
-    install_root: /mnt
-    zfs_pool_name: rpool
-    zfs_pool_type: "{{ 'mirror' if (disks | length) == 2 else 'stripe' }}"  # auto-detect pool type
-    luks_passphrase: "{{ vault_luks_passphrase | default('password') }}"
+#   vars:
+#     install_root: /mnt
+#     zfs_pool_name: rpool
+#     zfs_pool_type: "{{ 'mirror' if (disks | length) == 2 else 'stripe' }}"  # auto-detect pool type
+#     luks_passphrase: "{{ vault_luks_passphrase | default('password') }}"
     
-  tasks:
-    - name: Prepare installation environment
-      include_role:
-        name: prepare-environment
+#   tasks:
+#     - name: Prepare installation environment
+#       include_role:
+#         name: prepare-environment
         
-    - name: Configure disks
-      include_role:
-        name: configure-disks
+#     - name: Configure disks
+#       include_role:
+#         name: configure-disks
         
-    - name: Install base system
-      include_role:
-        name: install-base-system
+#     - name: Install base system
+#       include_role:
+#         name: install-base-system
         
-    - name: Configure chroot environment
-      include_role:
-        name: setup-chroot
+#     - name: Configure chroot environment
+#       include_role:
+#         name: setup-chroot
 
 - name: Configure system in chroot
   hosts: chroot
