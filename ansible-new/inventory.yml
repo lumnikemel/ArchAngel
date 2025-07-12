@@ -1,7 +1,17 @@
 all:
-  hosts:
-    localhost:
-      ansible_connection: local
+  children:
+    archiso:
+      hosts:
+        localhost:
+          ansible_connection: local
+    chroot:
+      hosts:
+        chroot_target:
+          ansible_connection: chroot
+          ansible_chroot: /mnt
+        
+
+
   vars:
     # Examples of different disk types
     disks:
@@ -12,4 +22,3 @@ all:
     timezone: America/Chicago
     target_hostname: myarch
     target_username: myuser
-

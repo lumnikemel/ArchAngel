@@ -1,10 +1,11 @@
 ---
+- name: Set partition suffix (p for NVMe, empty for others)
+  set_fact:
+    disk_partitions: "{{ disk_partitions | default({}) | combine({item: {'suffix': 'p' if 'nvme' in item else '', 'efi': item + ('p' if 'nvme' in item else '') + '1', 'root': item + ('p' if 'nvme' in item else '') + '2'}}) }}"
+  loop: "{{ disks }}"
+
 - name: Install bootloader packages
-  package:
-    name:
-      - efibootmgr
-      - mkinitcpio-sd-zfs
-    state: present
+  command: pacman -S --noconfirm efibootmgr
 
 - name: Configure mkinitcpio hooks
   lineinfile:

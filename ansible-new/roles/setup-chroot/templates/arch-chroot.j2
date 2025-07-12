@@ -1,2 +1,15 @@
-#!/bin/bash
-exec arch-chroot {{ install_root }} "$@"
+# Chroot Connection
+
+The inventory now uses Ansible's built-in `chroot` connection plugin:
+
+```yaml
+chroot:
+  hosts:
+    chroot_target:
+      ansible_connection: chroot
+      ansible_chroot: /mnt
+```
+
+This automatically handles running commands in the chroot environment without needing custom scripts or connection plugins.
+
+The `setup-chroot` role only needs to mount the required filesystems - Ansible handles the rest.
