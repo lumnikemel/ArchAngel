@@ -20,7 +20,7 @@
     line: 'MODULES=(vfat)'
 
 - name: Install systemd-boot
-  command: bootctl install
+  command: bootctl --path=/boot install
   ignore_errors: true
 
 - name: Create loader configuration
