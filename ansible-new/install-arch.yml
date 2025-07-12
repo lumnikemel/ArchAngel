@@ -5,7 +5,7 @@
 #   gather_facts: yes
   
 #   vars:
-#     install_root: /mnt
+#     install_root: /mnt/arch
 #     zfs_pool_name: rpool
 #     zfs_pool_type: "{{ 'mirror' if (disks | length) == 2 else 'stripe' }}"  # auto-detect pool type
 #     luks_passphrase: "{{ vault_luks_passphrase | default('password') }}"
