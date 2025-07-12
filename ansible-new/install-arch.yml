@@ -15,9 +15,9 @@
       include_role:
         name: prepare-environment
         
-    - name: Configure disks
-      include_role:
-        name: configure-disks
+    # - name: Configure disks
+    #   include_role:
+    #     name: configure-disks
         
     - name: Install base system
       include_role:
