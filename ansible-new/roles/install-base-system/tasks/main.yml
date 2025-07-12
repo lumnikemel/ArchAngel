@@ -2,7 +2,7 @@
 - name: Install base system packages
   command: >
     pacstrap {{ install_root }}
-    base base-devel linux linux-headers linux-firmware
+    base base-devel linux-lts linux-headers-lts linux-firmware
     intel-ucode openssh dhcpcd networkmanager
     zfs-dkms zfs-utils
     python
