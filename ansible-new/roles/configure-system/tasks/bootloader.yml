@@ -21,6 +21,7 @@
 
 - name: Install systemd-boot
   command: bootctl install
+  ignore_errors: true
 
 - name: Create loader configuration
   copy:

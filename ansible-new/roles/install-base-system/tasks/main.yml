@@ -5,6 +5,7 @@
     base base-devel linux linux-headers linux-firmware
     intel-ucode openssh dhcpcd networkmanager
     zfs-dkms zfs-utils
+    python
 
 - name: Generate fstab
   command: genfstab -U {{ install_root }} >> {{ install_root }}/etc/fstab
