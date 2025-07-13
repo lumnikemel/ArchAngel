@@ -19,3 +19,7 @@
   command: modprobe zfs
   register: zfs_load
   failed_when: zfs_load.rc != 0
+
+- name: Configure VMware environment
+  include_tasks: vmware.yml
+  when: ansible_product_name is defined and 'VMware' in ansible_product_name

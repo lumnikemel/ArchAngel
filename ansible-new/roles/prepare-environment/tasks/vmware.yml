@@ -1,0 +1,29 @@
+---
+- name: Install open-vm-tools
+  pacman:
+    name: open-vm-tools
+    state: present
+    update_cache: yes
+
+- name: Start VMware services
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop:
+    - vmtoolsd.service
+    - vmware-vmblock-fuse.service
+
+- name: Create shared folder mount point
+  file:
+    path: /root/shared
+    state: directory
+    mode: '0755'
+
+- name: Mount VMware shared folders
+  mount:
+    path: /root/shared
+    src: vmhgfs-fuse
+    fstype: fuse
+    opts: "defaults,allow_other"
+    state: mounted
