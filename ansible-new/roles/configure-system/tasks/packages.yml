@@ -1,0 +1,63 @@
+---
+- name: Install Linux kernel & drivers
+  community.general.pacman:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - linux-lts 
+    - linux-headers-lts 
+    - linux-firmware
+
+- name: Install microcode
+  community.general.pacman:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - intel-ucode 
+
+- name: Install Linux kernel
+  community.general.pacman:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - base-devel 
+    - linux-lts 
+    - linux-headers-lts 
+    - linux-firmware
+    - intel-ucode 
+    - openssh 
+    - dhcpcd 
+    - networkmanager
+    - zfs-dkms 
+    - zfs-utils
+    - python
+    
+- name: Install ZFS packages
+  community.general.pacman:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - zfs-dkms 
+    - zfs-utils
+
+- name: Install network packages
+  community.general.pacman:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - dhcpcd 
+    - networkmanager
+
+- name: Install Open-SSH
+  community.general.pacman:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - openssh 
+
+- name: Install development packages
+  community.general.pacman:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - python

@@ -1,18 +1,14 @@
 ---
-- name: Install base system packages
-  command: >
-    pacstrap {{ install_root }}
-    base base-devel linux-lts linux-headers-lts linux-firmware
-    intel-ucode openssh dhcpcd networkmanager
-    zfs-dkms zfs-utils
-    python
-
-- name: Generate fstab
-  command: genfstab -U {{ install_root }} >> {{ install_root }}/etc/fstab
-
 - name: Mount EFI partition
   mount:
     path: "{{ install_root }}/boot"
     src: "{{ disk_partitions[disks[0]].efi }}"
     fstype: vfat
     state: mounted
+
+- name: Install base system packages
+  command: pacstrap {{ install_root }} base python
+  # python is required for Ansible modules
+
+- name: Generate fstab
+  command: genfstab -U {{ install_root }} >> {{ install_root }}/etc/fstab
