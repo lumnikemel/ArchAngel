@@ -57,8 +57,16 @@
 - name: Enable SSH daemon
   command: systemctl enable sshd
 
+- name: Set keymap
+  ansible.builtin.lineinfile:
+    path: /etc/vconsole.conf
+    search_string: 'KEYMAP'
+    line: KEYMAP=us
+    create: yes
+    
+- name: Configure ZFS
+  include_tasks: zfs-config.yml
+
 - name: Install and configure bootloader
   include_tasks: bootloader.yml
 
-- name: Configure ZFS
-  include_tasks: zfs-config.yml

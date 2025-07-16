@@ -1,4 +1,6 @@
 ---
+#ansible-playbook -i inventory.yml install-arch.yml
+
 - name: Prepare host and install base system
   hosts: archiso
   become: yes
@@ -11,36 +13,36 @@
     luks_passphrase: "{{ vault_luks_passphrase | default('password') }}"
     
   tasks:
-    - name: Prepare installation environment
-      include_role:
-        name: prepare-environment
-        
-    # - name: Configure disks
-    #   include_role:
-    #     name: configure-disks
-
-    # - name: Configure chroot environment
-    #   include_role:
-    #     name: setup-chroot
-    
-    # - name: Install base system
-    #   include_role:
-    #     name: install-base-system
-        
-
-
-# - name: Configure system in chroot
-#   hosts: chroot
-#   become: yes
-#   gather_facts: no
-  
-#   vars:
-#     hostname: "{{ target_hostname | default('archbox') }}"
-#     username: "{{ target_username | default('arch') }}"
-#     user_password: "{{ vault_user_password | default('password') }}"
-#     zfs_pool_name: rpool
-    
-#   tasks:
-#     - name: Configure system
+#     - name: Prepare installation environment
 #       include_role:
-#         name: configure-system
+#         name: prepare-environment
+        
+#     - name: Configure disks
+#       include_role:
+#         name: configure-disks
+
+#     - name: Configure chroot environment
+#       include_role:
+#         name: setup-chroot
+
+    - name: Install base system
+      include_role:
+        name: install-base-system
+        
+
+
+- name: Configure system in chroot
+  hosts: chroot
+  become: yes
+  gather_facts: no
+  
+  vars:
+    hostname: "{{ target_hostname | default('archbox') }}"
+    username: "{{ target_username | default('arch') }}"
+    user_password: "{{ vault_user_password | default('password') }}"
+    zfs_pool_name: rpool
+    
+  tasks:
+    - name: Configure system
+      include_role:
+        name: configure-system

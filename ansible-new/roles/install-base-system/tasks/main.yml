@@ -1,14 +1,26 @@
 ---
+# - name: Mount EFI partition
+#   mount:
+#     path: "{{ install_root }}/boot"
+#     src: "{{ disk_partitions[disks[0]].efi }}"
+#     fstype: vfat
+#     state: mounted
+
 - name: Mount EFI partition
   mount:
     path: "{{ install_root }}/boot"
-    src: "{{ disk_partitions[disks[0]].efi }}"
+    src: "{{ disks[0] }}p1"
     fstype: vfat
     state: mounted
 
 - name: Install base system packages
-  command: pacstrap {{ install_root }} base python
+  command: pacstrap {{ install_root }} base python zfs
   # python is required for Ansible modules
 
 - name: Generate fstab
-  command: genfstab -U {{ install_root }} >> {{ install_root }}/etc/fstab
+  shell: genfstab -U {{ install_root }} > {{ install_root }}/etc/fstab
+
+- name: Install systemd-boot
+  command: bootctl --path={{ install_root }}/boot install
+  ignore_errors: true
+  

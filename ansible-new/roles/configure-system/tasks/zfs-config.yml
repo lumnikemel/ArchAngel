@@ -10,7 +10,7 @@
     - zfs-import.target
 
 - name: Generate host id
-  command: zgenhostid $(hostid)
+  command: zgenhostid # $(echo $(hostid))
   args:
     creates: /etc/hostid
 

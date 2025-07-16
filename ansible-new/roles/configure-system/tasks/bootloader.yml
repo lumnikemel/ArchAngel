@@ -5,7 +5,9 @@
   loop: "{{ disks }}"
 
 - name: Install bootloader packages
-  command: pacman -S --noconfirm efibootmgr
+  pacman:
+    name: efibootmgr
+    state: present
 
 - name: Configure mkinitcpio hooks
   lineinfile:
@@ -44,4 +46,4 @@
   loop: "{{ disks }}"
 
 - name: Generate initramfs
-  command: mkinitcpio -p linux
+  command: mkinitcpio -p linux-lts

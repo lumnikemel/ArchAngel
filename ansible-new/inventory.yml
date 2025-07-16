@@ -6,7 +6,7 @@ all:
           ansible_connection: local
     chroot:
       hosts:
-        /mnt:
+        /mnt/arch:
           ansible_connection: chroot
           # ansible_chroot: /mnt
       # hosts:

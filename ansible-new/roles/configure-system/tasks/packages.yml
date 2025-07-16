@@ -1,12 +1,61 @@
 ---
+# - name: Install Linux kernel
+#   community.general.pacman:
+#     name: "{{ item }}"
+#     state: present
+#   loop:
+#     - base-devel 
+#     - linux-lts 
+#     - linux-headers-lts 
+#     - linux-firmware
+#     - intel-ucode 
+#     - openssh 
+#     - dhcpcd 
+#     - networkmanager
+#     - zfs-dkms 
+#     - zfs-utils
+#     - python
+
+
+- name: Add archzfs repo to /etc/pacman.conf
+  ansible.builtin.blockinfile:
+    path: /etc/pacman.conf
+    marker: "# {mark} pacman_conf_archzfs"
+    insertafter: EOF
+    state: present
+    block: |
+      [archzfs]
+      Server = https://github.com/archzfs/archzfs/releases/download/experimental
+
+- name: Add lumnikemel sd-zfs hook repo to /etc/pacman.conf
+  ansible.builtin.blockinfile:
+    path: /etc/pacman.conf
+    marker: "# {mark} pacman_conf_sd_zfs_hook"
+    insertafter: EOF
+    state: present
+    block: |
+      [sdzfshook]
+      SigLevel = Optional
+      Server = https://github.com/lumnikemel/sd-zfs-hook/releases/download/latest
+
+- name: Update pacman
+  shell: pacman -Sy
+
 - name: Install Linux kernel & drivers
   community.general.pacman:
     name: "{{ item }}"
     state: present
   loop:
     - linux-lts 
-    - linux-headers-lts 
+    - linux-lts-headers
     - linux-firmware
+
+- name: Install base-devel
+  community.general.pacman:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - base-devel
 
 - name: Install microcode
   community.general.pacman:
@@ -14,31 +63,18 @@
     state: present
   loop:
     - intel-ucode 
-
-- name: Install Linux kernel
-  community.general.pacman:
-    name: "{{ item }}"
-    state: present
-  loop:
-    - base-devel 
-    - linux-lts 
-    - linux-headers-lts 
-    - linux-firmware
-    - intel-ucode 
-    - openssh 
-    - dhcpcd 
-    - networkmanager
-    - zfs-dkms 
-    - zfs-utils
-    - python
     
 - name: Install ZFS packages
   community.general.pacman:
     name: "{{ item }}"
     state: present
   loop:
-    - zfs-dkms 
+    - zfs-linux-lts
+    - zfs-linux-lts-headers
     - zfs-utils
+    # - zfs-linux-lts-poscat # Provides sd-zfs kernel module.
+    - sd-zfs-hook
+    #- zfs-dkms 
 
 - name: Install network packages
   community.general.pacman:
