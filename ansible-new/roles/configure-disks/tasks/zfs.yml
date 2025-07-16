@@ -28,6 +28,8 @@
     {{ zfs_pool_type if zfs_pool_type != 'stripe' else '' }}
     {{ luks_device_paths | join(' ') }}
 
+
+
 - name: Create ZFS datasets
   zfs:
     name: "{{ zfs_pool_name }}/{{ item.name }}"
@@ -46,3 +48,25 @@
     - name: var
       properties:
         mountpoint: /var
+
+- name: Set ZFS boot-filesystem
+  command: zpool set bootfs={{ zfs_pool_name }}/ROOT/default {{ zfs_pool_name }}
+
+- name: Unmount ZFS filesystems
+  command: zfs umount -a
+  
+- name: Export zpool to that it can be imported to installed system
+  command: zpool export -a
+  ignore_errors: true
+  
+
+- name: Import zpool
+  command: zpool import -R {{ install_root }} {{ zfs_pool_name }}
+
+- name: Create zpool cache and copy to mounted zpool
+  shell: '{{ item }}'
+  loop:
+    - mkdir -p /etc/zfs
+    - mkdir -p {{ install_root }}/etc/zfs
+    - zpool set cachefile=/etc/zfs/zpool.cache {{ zfs_pool_name }}
+    - cp /etc/zfs/zpool.cache {{ install_root }}/etc/zfs/zpool.cache

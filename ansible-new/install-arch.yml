@@ -13,17 +13,17 @@
     luks_passphrase: "{{ vault_luks_passphrase | default('password') }}"
     
   tasks:
-#     - name: Prepare installation environment
-#       include_role:
-#         name: prepare-environment
+    - name: Prepare installation environment
+      include_role:
+        name: prepare-environment
         
-#     - name: Configure disks
-#       include_role:
-#         name: configure-disks
+    - name: Configure disks
+      include_role:
+        name: configure-disks
 
-#     - name: Configure chroot environment
-#       include_role:
-#         name: setup-chroot
+    - name: Configure chroot environment
+      include_role:
+        name: setup-chroot
 
     - name: Install base system
       include_role:

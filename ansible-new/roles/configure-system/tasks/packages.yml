@@ -38,8 +38,20 @@
       SigLevel = Optional
       Server = https://github.com/lumnikemel/sd-zfs-hook/releases/download/latest
 
-- name: Update pacman
-  shell: pacman -Sy
+- name: Install reflector
+  pacman:
+    name: reflector
+    state: present
+
+- name: Populate pacman keys
+  command: reflector --latest 10 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+
+- name: Update repos
+  pacman:
+    update_cache: yes
+
+# - name: Update pacman
+#   shell: pacman -Sy
 
 - name: Install Linux kernel & drivers
   community.general.pacman:
@@ -72,9 +84,7 @@
     - zfs-linux-lts
     - zfs-linux-lts-headers
     - zfs-utils
-    # - zfs-linux-lts-poscat # Provides sd-zfs kernel module.
     - sd-zfs-hook
-    #- zfs-dkms 
 
 - name: Install network packages
   community.general.pacman:
