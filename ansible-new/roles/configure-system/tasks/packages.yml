@@ -1,22 +1,4 @@
 ---
-# - name: Install Linux kernel
-#   community.general.pacman:
-#     name: "{{ item }}"
-#     state: present
-#   loop:
-#     - base-devel 
-#     - linux-lts 
-#     - linux-headers-lts 
-#     - linux-firmware
-#     - intel-ucode 
-#     - openssh 
-#     - dhcpcd 
-#     - networkmanager
-#     - zfs-dkms 
-#     - zfs-utils
-#     - python
-
-
 - name: Add archzfs repo to /etc/pacman.conf
   ansible.builtin.blockinfile:
     path: /etc/pacman.conf
@@ -38,17 +20,21 @@
       SigLevel = Optional
       Server = https://github.com/lumnikemel/sd-zfs-hook/releases/download/latest
 
-- name: Install reflector
-  pacman:
-    name: reflector
-    state: present
-
-- name: Populate pacman keys
-  command: reflector --latest 10 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
-
-- name: Update repos
+- name: Update repo cache
   pacman:
     update_cache: yes
+
+# - name: Install reflector
+#   pacman:
+#     name: reflector
+#     state: present
+
+# - name: Update pacman mirrorlist
+#   command: reflector --latest 10 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+
+# - name: Update repos
+#   pacman:
+#     update_cache: yes
 
 # - name: Update pacman
 #   shell: pacman -Sy

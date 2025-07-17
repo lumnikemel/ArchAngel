@@ -20,12 +20,17 @@
   register: zfs_load
   failed_when: zfs_load.rc != 0
 
-- name: Populate pacman keys
+- name: Update repos
+  pacman:
+    update_cache: yes
+
+- name: Update pacman mirrorlist
   command: reflector --latest 10 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
 
 - name: Update repos
   pacman:
     update_cache: yes
+
 
 # - name: Configure VMware environment
 #   include_tasks: vmware.yml

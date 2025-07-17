@@ -24,3 +24,7 @@
   command: bootctl --path={{ install_root }}/boot install
   ignore_errors: true
   
+- name: Copy pacman mirrorlist
+  copy:
+    src: /etc/pacman.d/mirrorlist
+    dest: "{{ install_root }}/etc/pacman.d/mirrorlist"
